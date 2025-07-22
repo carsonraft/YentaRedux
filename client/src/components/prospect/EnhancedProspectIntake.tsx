@@ -33,6 +33,15 @@ const EnhancedProspectIntake: React.FC = () => {
     email: ''
   });
 
+  // Validation state
+  const [validationStatus, setValidationStatus] = useState({
+    isValidating: false,
+    companyLinkedIn: null, // { exists: boolean, url: string, confidence: number }
+    websiteValidation: null, // { exists: boolean, domain: string, confidence: number }
+    personLinkedIn: null, // { exists: boolean, title: string, confidence: number }
+    overallScore: 0
+  });
+
   const rounds: ConversationRound[] = [
     { number: 1, title: 'Project Discovery', subtitle: 'What are you trying to solve?', duration: '15 min', completed: false },
     { number: 2, title: 'Tech Deep Dive', subtitle: 'Technical infrastructure', duration: '20 min', completed: false },
@@ -96,6 +105,22 @@ const EnhancedProspectIntake: React.FC = () => {
       setCollectedInfo(prev => ({ ...prev, timeline: userMessage }));
     }
     
+    // Extract website URLs
+    const websiteMatch = userMessage.match(/(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,})/i);
+    if (websiteMatch && !collectedInfo.companyWebsite) {
+      let website = websiteMatch[0];
+      if (!website.startsWith('http')) {
+        website = 'https://' + website;
+      }
+      setCollectedInfo(prev => ({ ...prev, companyWebsite: website }));
+    }
+    
+    // Extract LinkedIn profile URLs
+    const linkedInMatch = userMessage.match(/linkedin\.com\/in\/[a-zA-Z0-9-]+/i);
+    if (linkedInMatch && !collectedInfo.linkedInProfile) {
+      setCollectedInfo(prev => ({ ...prev, linkedInProfile: `https://${linkedInMatch[0]}` }));
+    }
+    
     // Extract current process info (if it's a longer explanation)
     if (userMessage.length > 50 && !collectedInfo.currentProcess) {
       setCollectedInfo(prev => ({ ...prev, currentProcess: userMessage }));
@@ -143,12 +168,14 @@ const EnhancedProspectIntake: React.FC = () => {
     problemScope: '', // company size impact, scale
     currentProcess: '', // what they're doing now
     painPoints: [], // specific issues they're facing
+    companyWebsite: '', // company website URL
     
     // Round 2: Technical Context  
     teamSize: '', // number of people affected
     techStack: [], // current tools/systems
     techCapability: '', // technical comfort level
     integrationNeeds: '', // what needs to connect
+    linkedInProfile: '', // LinkedIn profile for case studies
     
     // Round 3: Business Context
     budgetRange: '', // investment level
@@ -167,6 +194,7 @@ const EnhancedProspectIntake: React.FC = () => {
       const needsCurrentProcess = !collectedInfo.currentProcess;
       const needsPainPoints = collectedInfo.painPoints.length === 0;
       const needsScope = !collectedInfo.problemScope;
+      const needsWebsite = !collectedInfo.companyWebsite;
       
       if (needsProblemType) {
         // First, identify the core problem type
@@ -195,6 +223,10 @@ const EnhancedProspectIntake: React.FC = () => {
         return "How many people or transactions does this affect on a typical day/week?";
       }
       
+      if (needsWebsite) {
+        return "What's your company website? This helps us understand your business better.";
+      }
+      
       return "What would success look like if this problem was solved?";
     }
     
@@ -203,6 +235,7 @@ const EnhancedProspectIntake: React.FC = () => {
       const needsTechStack = collectedInfo.techStack.length === 0;
       const needsTeamSize = !collectedInfo.teamSize;
       const needsTechCapability = !collectedInfo.techCapability;
+      const needsLinkedIn = !collectedInfo.linkedInProfile;
       
       if (needsTechStack) {
         return "What software tools and systems does your team currently use?";
@@ -214,6 +247,10 @@ const EnhancedProspectIntake: React.FC = () => {
       
       if (needsTechCapability) {
         return "How comfortable is your team with new technology - do you typically need plug-and-play solutions or can you handle some setup?";
+      }
+      
+      if (needsLinkedIn) {
+        return "Mind sharing your LinkedIn profile? It helps us find relevant case studies and similar implementations.";
       }
       
       return "Any specific integration requirements or technical constraints I should know about?";
@@ -257,9 +294,90 @@ const EnhancedProspectIntake: React.FC = () => {
     setCurrentStep('conversation');
   };
 
-  const handleStartAssessment = () => {
+  const performBackgroundValidation = async () => {
+    setValidationStatus(prev => ({ ...prev, isValidating: true }));
+    
+    try {
+      // Extract email domain for website validation
+      const emailDomain = formData.email.split('@')[1];
+      
+      // Parallel validation calls to existing backend services
+      const [companyLinkedInRes, websiteRes, personLinkedInRes] = await Promise.allSettled([
+        // LinkedIn company lookup
+        fetch('/api/vetting/linkedin-company', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ companyName: formData.companyName })
+        }),
+        
+        // Website validation via email domain
+        fetch('/api/vetting/website-intelligence', {
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain: emailDomain })
+        }),
+        
+        // LinkedIn person search
+        fetch('/api/vetting/linkedin-person', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            name: formData.contactName, 
+            company: formData.companyName 
+          })
+        })
+      ]);
+
+      // Process results
+      let companyLinkedIn = null;
+      if (companyLinkedInRes.status === 'fulfilled' && companyLinkedInRes.value.ok) {
+        companyLinkedIn = await companyLinkedInRes.value.json();
+      }
+
+      let websiteValidation = null;
+      if (websiteRes.status === 'fulfilled' && websiteRes.value.ok) {
+        websiteValidation = await websiteRes.value.json();
+      }
+
+      let personLinkedIn = null;
+      if (personLinkedInRes.status === 'fulfilled' && personLinkedInRes.value.ok) {
+        personLinkedIn = await personLinkedInRes.value.json();
+      }
+
+      // Calculate overall validation score
+      let score = 0;
+      if (companyLinkedIn?.exists) score += 40;
+      if (websiteValidation?.exists) score += 30;
+      if (personLinkedIn?.exists) score += 30;
+
+      setValidationStatus({
+        isValidating: false,
+        companyLinkedIn,
+        websiteValidation,
+        personLinkedIn,
+        overallScore: score
+      });
+
+      return score >= 70; // Require 70% validation score to proceed
+
+    } catch (error) {
+      console.error('Background validation failed:', error);
+      setValidationStatus(prev => ({ ...prev, isValidating: false }));
+      return true; // Allow proceeding if validation fails (graceful degradation)
+    }
+  };
+
+  const handleStartAssessment = async () => {
     if (formData.companyName && formData.contactName && formData.email) {
-      setCurrentStep('conversation');
+      // Start background validation
+      const isValid = await performBackgroundValidation();
+      
+      if (isValid) {
+        setCurrentStep('conversation');
+      } else {
+        // Could add validation feedback UI here
+        alert('We had trouble verifying your company information. Please check that your company name and email are correct.');
+      }
     }
   };
 
@@ -373,10 +491,37 @@ const EnhancedProspectIntake: React.FC = () => {
               <button 
                 className="start-assessment-btn"
                 onClick={handleStartAssessment}
-                disabled={!formData.companyName || !formData.contactName || !formData.email}
+                disabled={!formData.companyName || !formData.contactName || !formData.email || validationStatus.isValidating}
               >
-                🚀 Start AI Assessment
+                {validationStatus.isValidating ? '🔍 Verifying Company...' : '🚀 Start AI Assessment'}
               </button>
+
+              {/* Validation feedback */}
+              {validationStatus.overallScore > 0 && (
+                <div className="validation-feedback" style={{
+                  marginTop: '16px',
+                  padding: '12px',
+                  background: validationStatus.overallScore >= 70 ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                  border: `1px solid ${validationStatus.overallScore >= 70 ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                  borderRadius: '6px',
+                  fontSize: '14px'
+                }}>
+                  <div style={{ fontWeight: '600', marginBottom: '8px' }}>
+                    Verification Score: {validationStatus.overallScore}/100
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div>
+                      {validationStatus.companyLinkedIn?.exists ? '✅' : '❌'} LinkedIn Company: {validationStatus.companyLinkedIn?.exists ? 'Verified' : 'Not Found'}
+                    </div>
+                    <div>
+                      {validationStatus.websiteValidation?.exists ? '✅' : '❌'} Company Website: {validationStatus.websiteValidation?.exists ? 'Verified' : 'Not Found'}
+                    </div>
+                    <div>
+                      {validationStatus.personLinkedIn?.exists ? '✅' : '❌'} LinkedIn Profile: {validationStatus.personLinkedIn?.exists ? 'Verified' : 'Not Found'}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="form-back">
@@ -458,6 +603,39 @@ const EnhancedProspectIntake: React.FC = () => {
         <div className="conversation-tip">
           💡 Tip: Be specific about numbers, timelines, and impact. This helps us find vendors experienced with your scale.
         </div>
+
+        {/* Validation Status Panel */}
+        {validationStatus.overallScore > 0 && (
+          <div className="validation-status-panel" style={{
+            background: 'rgba(15, 23, 42, 0.6)',
+            padding: '12px',
+            marginTop: '16px',
+            borderRadius: '6px',
+            fontSize: '13px',
+            border: '1px solid rgba(255, 255, 255, 0.1)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <strong style={{ color: '#e2e8f0' }}>Verification Status</strong>
+              <span style={{ 
+                color: validationStatus.overallScore >= 70 ? '#22c55e' : '#ef4444',
+                fontWeight: '600'
+              }}>
+                {validationStatus.overallScore}/100
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '16px' }}>
+              <span style={{ color: validationStatus.companyLinkedIn?.exists ? '#22c55e' : '#6b7280' }}>
+                {validationStatus.companyLinkedIn?.exists ? '✅' : '⭕'} Company
+              </span>
+              <span style={{ color: validationStatus.websiteValidation?.exists ? '#22c55e' : '#6b7280' }}>
+                {validationStatus.websiteValidation?.exists ? '✅' : '⭕'} Website
+              </span>
+              <span style={{ color: validationStatus.personLinkedIn?.exists ? '#22c55e' : '#6b7280' }}>
+                {validationStatus.personLinkedIn?.exists ? '✅' : '⭕'} Profile
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Debug panel to show collected information */}
         <div className="collected-info-debug" style={{ 
