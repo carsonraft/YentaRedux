@@ -37,6 +37,7 @@ app.use('/api/invoices', require('./routes/invoices'));
 app.use('/api/calendar', require('./routes/calendar'));
 app.use('/api/vetting', require('./routes/vetting'));
 app.use('/api/ai', require('./routes/ai-extraction'));
+app.use('/api/auth', require('./routes/linkedin-auth'));
 
 // Health check
 app.get('/api/health', (req, res) => {

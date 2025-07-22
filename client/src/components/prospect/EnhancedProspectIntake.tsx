@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import '../../styles/design-system.css';
 import './EnhancedProspectIntake.css';
+import LinkedInSignIn from '../auth/LinkedInSignIn';
 
 interface Message {
   id: string;
@@ -30,8 +31,14 @@ const EnhancedProspectIntake: React.FC = () => {
   const [formData, setFormData] = useState({
     companyName: '',
     contactName: '',
-    email: ''
+    email: '',
+    linkedInProfile: '',
+    jobTitle: '',
+    industry: ''
   });
+
+  // LinkedIn pre-fill data
+  const [linkedInData, setLinkedInData] = useState<any>(null);
 
   // Validation state
   const [validationStatus, setValidationStatus] = useState({
@@ -487,6 +494,41 @@ Only include fields where you're confident about the value. Return empty object 
     }
   };
 
+  const handleLinkedInSuccess = (data: any, suggestedRole: 'prospect' | 'vendor') => {
+    setLinkedInData(data);
+    
+    // Pre-fill form with LinkedIn data
+    if (data.prefillData) {
+      setFormData(prev => ({
+        ...prev,
+        companyName: data.prefillData.companyName || '',
+        contactName: data.prefillData.contactName || '',
+        email: data.prefillData.email || '',
+        linkedInProfile: data.prefillData.linkedInProfile || '',
+        jobTitle: data.prefillData.jobTitle || '',
+        industry: data.prefillData.industry || ''
+      }));
+
+      // Pre-populate structured data from LinkedIn inference
+      if (data.prefillData.inferredData) {
+        setCollectedInfo(prev => ({
+          ...prev,
+          structured: {
+            ...prev.structured,
+            industry: data.prefillData.inferredData.industry || '',
+            jobFunction: data.prefillData.inferredData.jobFunction || '',
+            decisionRole: data.prefillData.inferredData.decisionRole || ''
+          },
+          artifacts: {
+            ...prev.artifacts,
+            companyWebsite: data.prefillData.companyWebsite || '',
+            linkedInProfile: data.prefillData.linkedInProfile || ''
+          }
+        }));
+      }
+    }
+  };
+
   const handleStartAssessment = async () => {
     if (formData.companyName && formData.contactName && formData.email) {
       // Start background validation
@@ -578,6 +620,40 @@ Only include fields where you're confident about the value. Return empty object 
           <div className="form-section">
             <h2>Let's get you connected with the right AI vendors</h2>
             <p>Just a few quick details to personalize your experience:</p>
+
+            {/* LinkedIn Sign-In Option */}
+            {!linkedInData && (
+              <div style={{ marginBottom: '32px' }}>
+                <LinkedInSignIn 
+                  onLinkedInSuccess={handleLinkedInSuccess}
+                  userType="prospect"
+                />
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  margin: '24px 0',
+                  color: '#6b7280',
+                  fontSize: '14px'
+                }}>
+                  <div style={{ flex: 1, height: '1px', background: '#e5e7eb' }}></div>
+                  <span style={{ padding: '0 16px' }}>or fill out manually</span>
+                  <div style={{ flex: 1, height: '1px', background: '#e5e7eb' }}></div>
+                </div>
+              </div>
+            )}
+
+            {linkedInData && (
+              <div style={{ 
+                marginBottom: '24px', 
+                padding: '16px', 
+                background: '#ecfdf5', 
+                border: '1px solid #a7f3d0', 
+                borderRadius: '8px',
+                fontSize: '14px'
+              }}>
+                ✅ <strong>LinkedIn Connected:</strong> We've pre-filled your information from your profile. You can edit anything below if needed.
+              </div>
+            )}
 
             <div className="intake-form">
               <div className="form-group">
