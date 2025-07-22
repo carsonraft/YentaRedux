@@ -1,14 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db/pool');
-const auth = require('../middleware/auth');
+const { authenticateToken: auth } = require('../middleware/auth');
 
-// Import vetting services
-const websiteIntelligence = require('../services/websiteIntelligence');
-const linkedinValidation = require('../services/linkedinValidation');
-const smartBudgetAssessment = require('../services/smartBudgetAssessment');
-const multiRoundConversation = require('../services/multiRoundConversation');
-const behavioralAnalysis = require('../services/behavioralAnalysis');
+// Import vetting services (temporarily commented for debugging)
+// const websiteIntelligence = require('../services/websiteIntelligence');
+// const linkedinValidation = require('../services/linkedinValidation');
+// const smartBudgetAssessment = require('../services/smartBudgetAssessment');
+// const multiRoundConversation = require('../services/multiRoundConversation');
+// const behavioralAnalysis = require('../services/behavioralAnalysis');
 
 /**
  * Enhanced Prospect Vetting API Routes
@@ -220,7 +220,7 @@ router.post('/budget-assessment', auth, async (req, res) => {
     const companyData = {
       company_name: prospect.company_name,
       industry: prospect.industry,
-      estimated_employee_count: prospect.company_size ? this.parseCompanySize(prospect.company_size) : null,
+      estimated_employee_count: prospect.company_size ? parseCompanySize(prospect.company_size) : null,
       verified_employee_count: prospect.linkedin_company_data?.basic_info?.employee_count || null,
       company_type: prospect.linkedin_company_data?.basic_info?.company_type || 'private',
       website_intelligence: prospect.website_intelligence
@@ -342,7 +342,7 @@ router.post('/comprehensive', auth, async (req, res) => {
       const companyData = {
         company_name: prospect.company_name,
         industry: prospect.industry,
-        estimated_employee_count: this.parseCompanySize(prospect.company_size),
+        estimated_employee_count: parseCompanySize(prospect.company_size),
         website_intelligence: prospect.website_intelligence
       };
       
@@ -404,11 +404,11 @@ router.post('/comprehensive', auth, async (req, res) => {
     }
     
     // Calculate comprehensive scores
-    const finalReadinessScore = await this.calculateComprehensiveScore(prospect_id);
-    const finalCategory = this.determineReadinessCategory(finalReadinessScore);
+    const finalReadinessScore = await calculateComprehensiveScore(prospect_id);
+    const finalCategory = determineReadinessCategory(finalReadinessScore);
     
     // Create validation summary
-    const validationSummary = await this.createValidationSummary(
+    const validationSummary = await createValidationSummary(
       prospect_id,
       conversationResult.rows[0]?.id,
       finalReadinessScore,
@@ -466,7 +466,7 @@ router.get('/stats', auth, async (req, res) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
     
-    const stats = await this.calculateVettingStats();
+    const stats = await calculateVettingStats();
     res.json(stats);
   } catch (error) {
     console.error('Error calculating vetting stats:', error);

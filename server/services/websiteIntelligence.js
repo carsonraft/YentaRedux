@@ -1,8 +1,12 @@
 const axios = require('axios');
 const { JSDOM } = require('jsdom');
-const openai = require('./openai');
-const db = require('../db');
+const db = require('../db/pool');
 const crypto = require('crypto');
+const OpenAI = require('openai');
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 /**
  * Website Intelligence Service

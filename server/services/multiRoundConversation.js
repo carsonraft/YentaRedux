@@ -1,5 +1,4 @@
-const openai = require('./openai');
-const db = require('../db');
+const db = require('../db/pool');
 
 /**
  * Multi-Round Conversation Service
