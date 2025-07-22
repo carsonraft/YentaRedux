@@ -35,6 +35,7 @@ app.use('/api/mdf', require('./routes/mdf'));
 app.use('/api/payments', require('./routes/payments'));
 app.use('/api/invoices', require('./routes/invoices'));
 app.use('/api/calendar', require('./routes/calendar'));
+app.use('/api/vetting', require('./routes/vetting'));
 
 // Health check
 app.get('/api/health', (req, res) => {
