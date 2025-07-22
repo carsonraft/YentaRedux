@@ -3,12 +3,12 @@ const router = express.Router();
 const db = require('../db/pool');
 const { authenticateToken: auth } = require('../middleware/auth');
 
-// Import vetting services (temporarily commented for debugging)
-// const websiteIntelligence = require('../services/websiteIntelligence');
-// const linkedinValidation = require('../services/linkedinValidation');
-// const smartBudgetAssessment = require('../services/smartBudgetAssessment');
-// const multiRoundConversation = require('../services/multiRoundConversation');
-// const behavioralAnalysis = require('../services/behavioralAnalysis');
+// Import vetting services
+const websiteIntelligence = require('../services/websiteIntelligence');
+const linkedinValidation = require('../services/linkedinValidation');
+const smartBudgetAssessment = require('../services/smartBudgetAssessment');
+const multiRoundConversation = require('../services/multiRoundConversation');
+const behavioralAnalysis = require('../services/behavioralAnalysis');
 
 /**
  * Enhanced Prospect Vetting API Routes

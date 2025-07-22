@@ -5,7 +5,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-image: url('background.jpg');
+  background-image: url('./styles/bg3.jpg');
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
