@@ -63,6 +63,45 @@ const EnhancedProspectIntake: React.FC = () => {
     setProgress(currentRound === 1 ? 10 : currentRound === 2 ? 40 : 70);
   };
 
+  const extractInformationFromMessage = (userMessage: string) => {
+    const lowerMessage = userMessage.toLowerCase();
+    
+    // Extract problem type if not already set
+    if (!collectedInfo.problemType) {
+      if (lowerMessage.includes('time') || lowerMessage.includes('employee') || lowerMessage.includes('timesheet')) {
+        setCollectedInfo(prev => ({ ...prev, problemType: 'time_tracking' }));
+      } else if (lowerMessage.includes('customer') || lowerMessage.includes('support') || lowerMessage.includes('service')) {
+        setCollectedInfo(prev => ({ ...prev, problemType: 'customer_support' }));
+      } else if (lowerMessage.includes('finance') || lowerMessage.includes('money') || lowerMessage.includes('expense') || lowerMessage.includes('budget')) {
+        setCollectedInfo(prev => ({ ...prev, problemType: 'financial_management' }));
+      }
+    }
+    
+    // Extract team size numbers
+    const teamSizeMatch = userMessage.match(/(\d+)\s*(people|employees|users|team|staff)/i);
+    if (teamSizeMatch && !collectedInfo.teamSize) {
+      setCollectedInfo(prev => ({ ...prev, teamSize: teamSizeMatch[1] }));
+    }
+    
+    // Extract budget ranges
+    const budgetMatch = userMessage.match(/\$?([\d,]+)k?|\$?([\d,]+),000/i);
+    if (budgetMatch && !collectedInfo.budgetRange) {
+      setCollectedInfo(prev => ({ ...prev, budgetRange: userMessage }));
+    }
+    
+    // Extract timeline urgency
+    if (lowerMessage.includes('urgent') || lowerMessage.includes('asap') || lowerMessage.includes('immediately')) {
+      setCollectedInfo(prev => ({ ...prev, timeline: 'urgent' }));
+    } else if (lowerMessage.includes('month') && !collectedInfo.timeline) {
+      setCollectedInfo(prev => ({ ...prev, timeline: userMessage }));
+    }
+    
+    // Extract current process info (if it's a longer explanation)
+    if (userMessage.length > 50 && !collectedInfo.currentProcess) {
+      setCollectedInfo(prev => ({ ...prev, currentProcess: userMessage }));
+    }
+  };
+
   const sendMessage = async () => {
     if (!currentMessage.trim()) return;
 
@@ -74,6 +113,10 @@ const EnhancedProspectIntake: React.FC = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    
+    // Extract information from user message
+    extractInformationFromMessage(currentMessage);
+    
     setCurrentMessage('');
     setIsTyping(true);
 
@@ -93,54 +136,108 @@ const EnhancedProspectIntake: React.FC = () => {
     }, 1500);
   };
 
+  // Information schema that vendors need
+  const [collectedInfo, setCollectedInfo] = useState({
+    // Round 1: Problem Discovery
+    problemType: '', // e.g., "time tracking", "customer support", "financial management"
+    problemScope: '', // company size impact, scale
+    currentProcess: '', // what they're doing now
+    painPoints: [], // specific issues they're facing
+    
+    // Round 2: Technical Context  
+    teamSize: '', // number of people affected
+    techStack: [], // current tools/systems
+    techCapability: '', // technical comfort level
+    integrationNeeds: '', // what needs to connect
+    
+    // Round 3: Business Context
+    budgetRange: '', // investment level
+    timeline: '', // urgency/timeline
+    decisionMakers: [], // who's involved in decision
+    successMetrics: '' // what defines success
+  });
+
   const generateAIResponse = (userMessage: string, messageCount: number): string => {
     const lowerMessage = userMessage.toLowerCase();
     
-    // Round 1: Project Discovery - Contextual responses based on user input
+    // Round 1: Problem Discovery - Fill problem context
     if (currentRound === 1) {
-      // Employee time tracking
-      if (lowerMessage.includes('employee') || lowerMessage.includes('time') || lowerMessage.includes('timesheet') || lowerMessage.includes('tracking')) {
-        if (messageCount <= 2) return "What specific time tracking challenges are you facing - data collection, accuracy, or reporting?";
-        if (messageCount <= 4) return "How many employees need tracking, and what's your current process?";
-        if (messageCount <= 6) return "What would an ideal solution accomplish for your team?";
-        return "What's your timeline for implementing a time tracking solution?";
+      // Determine what info we still need for Round 1
+      const needsProblemType = !collectedInfo.problemType;
+      const needsCurrentProcess = !collectedInfo.currentProcess;
+      const needsPainPoints = collectedInfo.painPoints.length === 0;
+      const needsScope = !collectedInfo.problemScope;
+      
+      if (needsProblemType) {
+        // First, identify the core problem type
+        if (lowerMessage.includes('time') || lowerMessage.includes('employee') || lowerMessage.includes('track')) {
+          // Update state with problem type
+          return "Got it - time tracking. What's your current process for tracking employee time?";
+        }
+        if (lowerMessage.includes('customer') || lowerMessage.includes('support') || lowerMessage.includes('service')) {
+          return "Customer support - understood. What's your current support setup and volume?";
+        }
+        if (lowerMessage.includes('finance') || lowerMessage.includes('money') || lowerMessage.includes('expense')) {
+          return "Financial management - got it. What financial processes are you looking to improve?";
+        }
+        return "What specific business process or challenge are you looking to solve with AI?";
       }
       
-      // Financial tracking
-      if (lowerMessage.includes('money') || lowerMessage.includes('finance') || lowerMessage.includes('budget') || lowerMessage.includes('expense')) {
-        if (messageCount <= 2) return "What type of financial tracking - business expenses, project budgets, or reporting?";
-        if (messageCount <= 4) return "What's your current process and where does it break down?";
-        if (messageCount <= 6) return "What would you want an improved system to deliver?";
-        return "What's your biggest pain point with financial tracking right now?";
+      if (needsCurrentProcess) {
+        return "How are you handling this currently, and where does that process break down?";
       }
       
-      // Customer support
-      if (lowerMessage.includes('customer') || lowerMessage.includes('support') || lowerMessage.includes('service')) {
-        if (messageCount <= 2) return "What's your current support volume and process?";
-        if (messageCount <= 4) return "What types of issues are most common?";
-        if (messageCount <= 6) return "What would you want to improve - response times, agent efficiency, or customer satisfaction?";
-        return "What's your priority - deflecting simple queries or helping agents work faster?";
+      if (needsPainPoints) {
+        return "What are the biggest problems with your current approach?";
       }
       
-      // Generic fallbacks for Round 1
-      if (messageCount <= 2) return "Can you tell me more about the specific problem you're trying to solve?";
-      if (messageCount <= 4) return "What methods have you tried so far to address this issue?";
-      if (messageCount <= 6) return "What would success look like in 6 months if this problem was solved?";
-      return "What's your timeline for implementing a solution?";
+      if (needsScope) {
+        return "How many people or transactions does this affect on a typical day/week?";
+      }
+      
+      return "What would success look like if this problem was solved?";
     }
     
-    // Round 2: Technical capabilities
+    // Round 2: Technical Context - Fill technical requirements
     if (currentRound === 2) {
-      if (messageCount <= 2) return "What technology systems does your team currently use?";
-      if (messageCount <= 4) return "How comfortable is your team with integrating new tools or APIs?";
-      return "What's your experience with previous automation or AI projects?";
+      const needsTechStack = collectedInfo.techStack.length === 0;
+      const needsTeamSize = !collectedInfo.teamSize;
+      const needsTechCapability = !collectedInfo.techCapability;
+      
+      if (needsTechStack) {
+        return "What software tools and systems does your team currently use?";
+      }
+      
+      if (needsTeamSize) {
+        return "How many people would be using or affected by this solution?";
+      }
+      
+      if (needsTechCapability) {
+        return "How comfortable is your team with new technology - do you typically need plug-and-play solutions or can you handle some setup?";
+      }
+      
+      return "Any specific integration requirements or technical constraints I should know about?";
     }
     
-    // Round 3: Budget and decision making
+    // Round 3: Business Context - Fill business requirements  
     if (currentRound === 3) {
-      if (messageCount <= 2) return "What budget range are you considering for this type of solution?";
-      if (messageCount <= 4) return "Who else would be involved in the final decision-making process?";
-      return "This helps us match you with vendors who have experience in your investment range and industry.";
+      const needsBudget = !collectedInfo.budgetRange;
+      const needsTimeline = !collectedInfo.timeline;
+      const needsDecisionMakers = collectedInfo.decisionMakers.length === 0;
+      
+      if (needsBudget) {
+        return "What budget range are you working with for this project?";
+      }
+      
+      if (needsTimeline) {
+        return "What's your timeline - is this urgent or more of a future planning exercise?";
+      }
+      
+      if (needsDecisionMakers) {
+        return "Who else would be involved in evaluating and choosing a vendor?";
+      }
+      
+      return "Perfect. I have what I need to match you with relevant vendors.";
     }
     
     return "Could you tell me more about that?";
@@ -360,6 +457,19 @@ const EnhancedProspectIntake: React.FC = () => {
 
         <div className="conversation-tip">
           💡 Tip: Be specific about numbers, timelines, and impact. This helps us find vendors experienced with your scale.
+        </div>
+
+        {/* Debug panel to show collected information */}
+        <div className="collected-info-debug" style={{ 
+          background: 'rgba(0,0,0,0.1)', 
+          padding: '12px', 
+          marginTop: '16px', 
+          borderRadius: '4px', 
+          fontSize: '12px',
+          fontFamily: 'monospace'
+        }}>
+          <strong>Collected Info:</strong>
+          <pre>{JSON.stringify(collectedInfo, null, 2)}</pre>
         </div>
 
           <div className="round-actions">
