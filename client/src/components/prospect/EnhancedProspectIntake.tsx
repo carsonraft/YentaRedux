@@ -140,6 +140,19 @@ const EnhancedProspectIntake: React.FC = () => {
       setCollectedInfo(prev => ({ ...prev, complianceRequirements: userMessage }));
     }
     
+    // Extract job function
+    if ((lowerMessage.includes('ceo') || lowerMessage.includes('cto') || lowerMessage.includes('cfo') || lowerMessage.includes('c-level')) && !collectedInfo.jobFunction) {
+      setCollectedInfo(prev => ({ ...prev, jobFunction: 'c_level' }));
+    } else if ((lowerMessage.includes('vp') || lowerMessage.includes('vice president')) && !collectedInfo.jobFunction) {
+      setCollectedInfo(prev => ({ ...prev, jobFunction: 'vp' }));
+    } else if (lowerMessage.includes('director') && !collectedInfo.jobFunction) {
+      setCollectedInfo(prev => ({ ...prev, jobFunction: 'director' }));
+    } else if (lowerMessage.includes('manager') && !collectedInfo.jobFunction) {
+      setCollectedInfo(prev => ({ ...prev, jobFunction: 'manager' }));
+    } else if ((lowerMessage.includes('individual contributor') || lowerMessage.includes('analyst') || lowerMessage.includes('specialist')) && !collectedInfo.jobFunction) {
+      setCollectedInfo(prev => ({ ...prev, jobFunction: 'individual_contributor' }));
+    }
+    
     // Extract decision role
     if ((lowerMessage.includes('decision maker') || lowerMessage.includes('chief')) && !collectedInfo.decisionRole) {
       setCollectedInfo(prev => ({ ...prev, decisionRole: 'chief_decision_maker' }));
@@ -201,6 +214,7 @@ const EnhancedProspectIntake: React.FC = () => {
     // Round 1: Problem & Context Discovery
     problemType: '', // e.g., "time tracking", "customer support", "financial management"
     industry: '', // healthcare, finance, construction, etc.
+    jobFunction: '', // individual_contributor, manager, director, vp, c_level
     solutionType: '', // end-to-end tool vs add to tech stack
     complianceRequirements: '', // HIPAA, SOX, government, industry-specific
     problemScope: '', // company size impact, scale
@@ -254,6 +268,10 @@ const EnhancedProspectIntake: React.FC = () => {
       
       if (needsIndustry) {
         return "What industry are you in? This helps us find vendors with relevant experience.";
+      }
+      
+      if (!collectedInfo.jobFunction) {
+        return "What's your job title or function - individual contributor, manager, director, VP, or C-level?";
       }
       
       if (!collectedInfo.decisionRole) {
