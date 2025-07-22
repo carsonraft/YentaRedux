@@ -72,64 +72,70 @@ const EnhancedProspectIntake: React.FC = () => {
     setProgress(currentRound === 1 ? 10 : currentRound === 2 ? 40 : 70);
   };
 
-  const extractInformationFromMessage = (userMessage: string) => {
+  const extractInformationFromMessage = async (userMessage: string) => {
+    // Use AI to intelligently extract structured information from user response
+    try {
+      const extractionPrompt = `
+Given this user response: "${userMessage}"
+And this conversation context: Currently collecting ${currentRound === 1 ? 'problem & context' : currentRound === 2 ? 'technical details' : 'business information'}
+
+Extract any relevant structured information and return ONLY a JSON object with the fields that can be determined:
+
+{
+  "problemType": "time_tracking|customer_support|financial_management|data_analysis|automation|other",
+  "industry": "healthcare|finance|construction|retail|manufacturing|technology|education|government|other",
+  "jobFunction": "individual_contributor|manager|director|vp|c_level",
+  "decisionRole": "researcher|team_member|chief_decision_maker",
+  "solutionType": "end_to_end|add_to_stack",
+  "complianceRequirements": "text description or null",
+  "teamSize": "number as string or null",
+  "techStack": ["tool1", "tool2"] or [],
+  "implementationCapacity": "have_team|need_help",
+  "businessUrgency": "under_3_months|3_to_6_months|1_year_plus",
+  "budgetStatus": "just_exploring|in_planning|awaiting_approval|approved",
+  "budgetRange": "text description or null",
+  "conversationNeeds": "intro_concepts|technical_deep_dive|sales_conversation|strategy_consultation",
+  "companyWebsite": "URL or null",
+  "linkedInProfile": "URL or null"
+}
+
+Only include fields where you're confident about the value. Return empty object {} if nothing can be extracted.`;
+
+      const response = await fetch('/api/ai/extract-info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          prompt: extractionPrompt,
+          userMessage,
+          currentRound 
+        })
+      });
+      
+      if (response.ok) {
+        const extractedData = await response.json();
+        
+        // Update state with extracted information
+        setCollectedInfo(prev => {
+          const updated = { ...prev };
+          Object.keys(extractedData).forEach(key => {
+            if (extractedData[key] && !updated[key]) {
+              updated[key] = extractedData[key];
+            }
+          });
+          return updated;
+        });
+      }
+    } catch (error) {
+      console.error('Information extraction failed:', error);
+      // Fallback to basic extraction for critical fields
+      extractBasicInformation(userMessage);
+    }
+  };
+
+  const extractBasicInformation = (userMessage: string) => {
     const lowerMessage = userMessage.toLowerCase();
     
-    // Extract problem type if not already set
-    if (!collectedInfo.problemType) {
-      if (lowerMessage.includes('time') || lowerMessage.includes('employee') || lowerMessage.includes('timesheet')) {
-        setCollectedInfo(prev => ({ ...prev, problemType: 'time_tracking' }));
-      } else if (lowerMessage.includes('customer') || lowerMessage.includes('support') || lowerMessage.includes('service')) {
-        setCollectedInfo(prev => ({ ...prev, problemType: 'customer_support' }));
-      } else if (lowerMessage.includes('finance') || lowerMessage.includes('money') || lowerMessage.includes('expense') || lowerMessage.includes('budget')) {
-        setCollectedInfo(prev => ({ ...prev, problemType: 'financial_management' }));
-      }
-    }
-    
-    // Extract team size numbers
-    const teamSizeMatch = userMessage.match(/(\d+)\s*(people|employees|users|team|staff)/i);
-    if (teamSizeMatch && !collectedInfo.teamSize) {
-      setCollectedInfo(prev => ({ ...prev, teamSize: teamSizeMatch[1] }));
-    }
-    
-    // Extract budget ranges
-    const budgetMatch = userMessage.match(/\$?([\d,]+)k?|\$?([\d,]+),000/i);
-    if (budgetMatch && !collectedInfo.budgetRange) {
-      setCollectedInfo(prev => ({ ...prev, budgetRange: userMessage }));
-    }
-    
-    // Extract business urgency
-    if ((lowerMessage.includes('under 3') || lowerMessage.includes('3 months') || lowerMessage.includes('urgent')) && !collectedInfo.businessUrgency) {
-      setCollectedInfo(prev => ({ ...prev, businessUrgency: 'under_3_months' }));
-    } else if ((lowerMessage.includes('3-6') || lowerMessage.includes('6 months')) && !collectedInfo.businessUrgency) {
-      setCollectedInfo(prev => ({ ...prev, businessUrgency: '3_to_6_months' }));
-    } else if ((lowerMessage.includes('1 year') || lowerMessage.includes('year+') || lowerMessage.includes('long term')) && !collectedInfo.businessUrgency) {
-      setCollectedInfo(prev => ({ ...prev, businessUrgency: '1_year_plus' }));
-    }
-    
-    // Extract budget status
-    if (lowerMessage.includes('just exploring') && !collectedInfo.budgetStatus) {
-      setCollectedInfo(prev => ({ ...prev, budgetStatus: 'just_exploring' }));
-    } else if (lowerMessage.includes('in planning') && !collectedInfo.budgetStatus) {
-      setCollectedInfo(prev => ({ ...prev, budgetStatus: 'in_planning' }));
-    } else if (lowerMessage.includes('awaiting approval') && !collectedInfo.budgetStatus) {
-      setCollectedInfo(prev => ({ ...prev, budgetStatus: 'awaiting_approval' }));
-    } else if (lowerMessage.includes('approved') && !collectedInfo.budgetStatus) {
-      setCollectedInfo(prev => ({ ...prev, budgetStatus: 'approved' }));
-    }
-    
-    // Extract conversation needs
-    if (lowerMessage.includes('intro') && !collectedInfo.conversationNeeds) {
-      setCollectedInfo(prev => ({ ...prev, conversationNeeds: 'intro_concepts' }));
-    } else if (lowerMessage.includes('technical deep dive') && !collectedInfo.conversationNeeds) {
-      setCollectedInfo(prev => ({ ...prev, conversationNeeds: 'technical_deep_dive' }));
-    } else if (lowerMessage.includes('sales conversation') && !collectedInfo.conversationNeeds) {
-      setCollectedInfo(prev => ({ ...prev, conversationNeeds: 'sales_conversation' }));
-    } else if (lowerMessage.includes('strategy consultation') && !collectedInfo.conversationNeeds) {
-      setCollectedInfo(prev => ({ ...prev, conversationNeeds: 'strategy_consultation' }));
-    }
-    
-    // Extract website URLs
+    // Only extract the most obvious patterns as fallback
     const websiteMatch = userMessage.match(/(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,})/i);
     if (websiteMatch && !collectedInfo.companyWebsite) {
       let website = websiteMatch[0];
@@ -139,63 +145,14 @@ const EnhancedProspectIntake: React.FC = () => {
       setCollectedInfo(prev => ({ ...prev, companyWebsite: website }));
     }
     
-    // Extract LinkedIn profile URLs
     const linkedInMatch = userMessage.match(/linkedin\.com\/in\/[a-zA-Z0-9-]+/i);
     if (linkedInMatch && !collectedInfo.linkedInProfile) {
       setCollectedInfo(prev => ({ ...prev, linkedInProfile: `https://${linkedInMatch[0]}` }));
     }
     
-    // Extract industry
-    const industries = ['healthcare', 'finance', 'construction', 'retail', 'manufacturing', 'technology', 'education', 'government'];
-    const industryMatch = industries.find(industry => lowerMessage.includes(industry));
-    if (industryMatch && !collectedInfo.industry) {
-      setCollectedInfo(prev => ({ ...prev, industry: industryMatch }));
-    }
-    
-    // Extract solution type
-    if ((lowerMessage.includes('end-to-end') || lowerMessage.includes('complete solution')) && !collectedInfo.solutionType) {
-      setCollectedInfo(prev => ({ ...prev, solutionType: 'end-to-end' }));
-    } else if ((lowerMessage.includes('add to') || lowerMessage.includes('integrate') || lowerMessage.includes('tech stack')) && !collectedInfo.solutionType) {
-      setCollectedInfo(prev => ({ ...prev, solutionType: 'add_to_stack' }));
-    }
-    
-    // Extract compliance requirements
-    if ((lowerMessage.includes('hipaa') || lowerMessage.includes('compliance') || lowerMessage.includes('government')) && !collectedInfo.complianceRequirements) {
-      setCollectedInfo(prev => ({ ...prev, complianceRequirements: userMessage }));
-    }
-    
-    // Extract job function
-    if ((lowerMessage.includes('ceo') || lowerMessage.includes('cto') || lowerMessage.includes('cfo') || lowerMessage.includes('c-level')) && !collectedInfo.jobFunction) {
-      setCollectedInfo(prev => ({ ...prev, jobFunction: 'c_level' }));
-    } else if ((lowerMessage.includes('vp') || lowerMessage.includes('vice president')) && !collectedInfo.jobFunction) {
-      setCollectedInfo(prev => ({ ...prev, jobFunction: 'vp' }));
-    } else if (lowerMessage.includes('director') && !collectedInfo.jobFunction) {
-      setCollectedInfo(prev => ({ ...prev, jobFunction: 'director' }));
-    } else if (lowerMessage.includes('manager') && !collectedInfo.jobFunction) {
-      setCollectedInfo(prev => ({ ...prev, jobFunction: 'manager' }));
-    } else if ((lowerMessage.includes('individual contributor') || lowerMessage.includes('analyst') || lowerMessage.includes('specialist')) && !collectedInfo.jobFunction) {
-      setCollectedInfo(prev => ({ ...prev, jobFunction: 'individual_contributor' }));
-    }
-    
-    // Extract decision role
-    if ((lowerMessage.includes('decision maker') || lowerMessage.includes('chief')) && !collectedInfo.decisionRole) {
-      setCollectedInfo(prev => ({ ...prev, decisionRole: 'chief_decision_maker' }));
-    } else if ((lowerMessage.includes('part of') || lowerMessage.includes('team')) && !collectedInfo.decisionRole) {
-      setCollectedInfo(prev => ({ ...prev, decisionRole: 'team_member' }));
-    } else if (lowerMessage.includes('research') && !collectedInfo.decisionRole) {
-      setCollectedInfo(prev => ({ ...prev, decisionRole: 'researcher' }));
-    }
-    
-    // Extract implementation capacity
-    if ((lowerMessage.includes('have team') || lowerMessage.includes('in place')) && !collectedInfo.implementationCapacity) {
-      setCollectedInfo(prev => ({ ...prev, implementationCapacity: 'have_team' }));
-    } else if ((lowerMessage.includes('need someone') || lowerMessage.includes('build it out')) && !collectedInfo.implementationCapacity) {
-      setCollectedInfo(prev => ({ ...prev, implementationCapacity: 'need_help' }));
-    }
-    
-    // Extract current process info (if it's a longer explanation)
-    if (userMessage.length > 50 && !collectedInfo.currentProcess) {
-      setCollectedInfo(prev => ({ ...prev, currentProcess: userMessage }));
+    const teamSizeMatch = userMessage.match(/(\d+)\s*(people|employees|users|team|staff)/i);
+    if (teamSizeMatch && !collectedInfo.teamSize) {
+      setCollectedInfo(prev => ({ ...prev, teamSize: teamSizeMatch[1] }));
     }
   };
 
@@ -211,8 +168,8 @@ const EnhancedProspectIntake: React.FC = () => {
 
     setMessages(prev => [...prev, userMessage]);
     
-    // Extract information from user message
-    extractInformationFromMessage(currentMessage);
+    // Extract information from user message using AI
+    await extractInformationFromMessage(currentMessage);
     
     setCurrentMessage('');
     setIsTyping(true);
@@ -286,19 +243,19 @@ const EnhancedProspectIntake: React.FC = () => {
       }
       
       if (!collectedInfo.jobFunction) {
-        return "What's your job title or function - individual contributor, manager, director, VP, or C-level?";
+        return "What's your role? Individual contributor, manager, director, VP, or C-level?";
       }
       
       if (!collectedInfo.decisionRole) {
-        return "What's your role in this process - are you researching, part of the decision-making team, or the chief decision maker?";
+        return "What's your role in this decision? Researching options, part of the decision-making team, or the chief decision maker?";
       }
       
       if (needsSolutionType) {
-        return "Are you looking for an end-to-end tool or something to add to your existing tech stack?";
+        return "What type of solution are you looking for? An end-to-end tool, or something to add to your existing tech stack?";
       }
       
       if (needsCompliance) {
-        return "Any special compliance requirements - HIPAA, government, industry-specific regulations?";
+        return "Any compliance requirements? HIPAA, government regulations, industry-specific standards, or none?";
       }
       
       if (needsCurrentProcess) {
@@ -333,15 +290,15 @@ const EnhancedProspectIntake: React.FC = () => {
       }
       
       if (needsImplementationCapacity) {
-        return "Do you have the team in place to implement the solution you're looking for, or do you need someone to build it out for you?";
+        return "For implementation, do you have the team in place to build this out, or do you need someone to do it for you?";
       }
       
       if (needsTechCapability) {
-        return "How comfortable is your team with new technology - do you typically need plug-and-play solutions or can you handle some setup?";
+        return "What's your team's comfort with new technology? Need plug-and-play solutions, or can you handle some technical setup?";
       }
       
       if (needsLinkedIn) {
-        return "Mind sharing your LinkedIn profile? It helps us find relevant case studies and similar implementations.";
+        return "Mind sharing your LinkedIn profile? Helps us find relevant case studies for your situation.";
       }
       
       return "Any specific integration requirements or technical constraints I should know about?";
