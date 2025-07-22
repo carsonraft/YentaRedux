@@ -5,7 +5,7 @@
 .transition-container,
 .completion-container {
   min-height: 100vh;
-  padding: var(--space-20);
+  padding: var(--space-12) var(--space-16);
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -21,8 +21,8 @@
   border: 1px solid rgba(226, 232, 240, 0.6);
   border-radius: var(--radius-2xl);
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-  padding: var(--space-8);
-  max-width: 800px;
+  padding: var(--space-10);
+  max-width: 1000px;
   width: 100%;
   margin: 0;
   /* Floating card effect */
@@ -244,7 +244,7 @@
 
 /* Conversation Styles */
 .conversation-container {
-  max-width: 900px;
+  max-width: 1100px;
   align-items: stretch;
 }
 
@@ -902,7 +902,7 @@
   .conversation-container,
   .transition-container,
   .completion-container {
-    padding: var(--space-6);
+    padding: var(--space-4) var(--space-6);
   }
 
   .intake-card,
@@ -911,6 +911,11 @@
     padding: var(--space-6);
     margin: 0;
     border-radius: var(--radius-xl);
+    max-width: 100%;
+  }
+
+  .conversation-container {
+    max-width: 100%;
   }
 
   .rounds-preview {
