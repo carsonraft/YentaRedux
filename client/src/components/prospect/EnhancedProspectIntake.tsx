@@ -100,47 +100,47 @@ const EnhancedProspectIntake: React.FC = () => {
     if (currentRound === 1) {
       // Employee time tracking
       if (lowerMessage.includes('employee') || lowerMessage.includes('time') || lowerMessage.includes('timesheet') || lowerMessage.includes('tracking')) {
-        if (messageCount <= 2) return "Employee time tracking - that's a challenge many companies face! Are you dealing with manual timesheets, project time allocation, or compliance tracking?";
-        if (messageCount <= 4) return "Manual processes are definitely time-consuming and error-prone. How many employees are you tracking, and what's the biggest pain point - data collection, accuracy, or reporting?";
-        if (messageCount <= 6) return "That sounds frustrating! What would success look like for you - automated time capture, better project insights, or eliminating manual processes entirely?";
-        return "Perfect! AI can help with automatic time tracking, project categorization, and real-time dashboards. What's your timeline for implementing a solution like this?";
+        if (messageCount <= 2) return "What specific time tracking challenges are you facing - data collection, accuracy, or reporting?";
+        if (messageCount <= 4) return "How many employees need tracking, and what's your current process?";
+        if (messageCount <= 6) return "What would an ideal solution accomplish for your team?";
+        return "What's your timeline for implementing a time tracking solution?";
       }
       
       // Financial tracking
       if (lowerMessage.includes('money') || lowerMessage.includes('finance') || lowerMessage.includes('budget') || lowerMessage.includes('expense')) {
-        if (messageCount <= 2) return "Financial tracking - that's a common challenge! Are you looking to track business expenses, project budgets, or financial reporting?";
-        if (messageCount <= 4) return "Spreadsheets are a great start! What's becoming difficult to manage with your current approach? Is it data entry, reporting, or accuracy?";
-        if (messageCount <= 6) return "I understand. What would success look like - automated categorization, real-time reporting, or better financial insights?";
-        return "AI can definitely help with automated expense categorization, anomaly detection, and predictive budgeting. What's your biggest pain point right now?";
+        if (messageCount <= 2) return "What type of financial tracking - business expenses, project budgets, or reporting?";
+        if (messageCount <= 4) return "What's your current process and where does it break down?";
+        if (messageCount <= 6) return "What would you want an improved system to deliver?";
+        return "What's your biggest pain point with financial tracking right now?";
       }
       
       // Customer support
       if (lowerMessage.includes('customer') || lowerMessage.includes('support') || lowerMessage.includes('service')) {
-        if (messageCount <= 2) return "Customer support automation is very popular! What's your current support volume like? How many inquiries do you handle per month?";
-        if (messageCount <= 4) return "What types of customer issues are most common? Are they technical questions, billing issues, or general inquiries?";
-        if (messageCount <= 6) return "That volume definitely justifies automation. What would success look like - faster response times, reduced workload, or better customer satisfaction?";
-        return "AI can help with chatbots, ticket routing, and knowledge base automation. What's your priority - deflecting simple queries or helping agents work faster?";
+        if (messageCount <= 2) return "What's your current support volume and process?";
+        if (messageCount <= 4) return "What types of issues are most common?";
+        if (messageCount <= 6) return "What would you want to improve - response times, agent efficiency, or customer satisfaction?";
+        return "What's your priority - deflecting simple queries or helping agents work faster?";
       }
       
       // Generic fallbacks for Round 1
-      if (messageCount <= 2) return "That's an interesting challenge! Can you tell me more about the specific problem you're trying to solve?";
-      if (messageCount <= 4) return "I see. What methods have you tried so far to address this issue?";
-      if (messageCount <= 6) return "What would success look like for you in 6 months if this problem was solved?";
-      return "That's really helpful context. Based on what you've shared, AI could definitely help streamline this process. What's your timeline for implementing a solution?";
+      if (messageCount <= 2) return "Can you tell me more about the specific problem you're trying to solve?";
+      if (messageCount <= 4) return "What methods have you tried so far to address this issue?";
+      if (messageCount <= 6) return "What would success look like in 6 months if this problem was solved?";
+      return "What's your timeline for implementing a solution?";
     }
     
     // Round 2: Technical capabilities
     if (currentRound === 2) {
-      if (messageCount <= 2) return "Thanks for those details. What technology systems does your team currently use?";
-      if (messageCount <= 4) return "That sounds like a solid foundation. How comfortable is your team with integrating new tools or APIs?";
-      return "Good to know. What's your experience with previous automation or AI projects?";
+      if (messageCount <= 2) return "What technology systems does your team currently use?";
+      if (messageCount <= 4) return "How comfortable is your team with integrating new tools or APIs?";
+      return "What's your experience with previous automation or AI projects?";
     }
     
     // Round 3: Budget and decision making
     if (currentRound === 3) {
-      if (messageCount <= 2) return "I appreciate the transparency. What budget range are you considering for this type of solution?";
-      if (messageCount <= 4) return "That makes sense. Who else would be involved in the final decision-making process?";
-      return "Perfect. This helps us match you with vendors who have experience in your investment range and industry.";
+      if (messageCount <= 2) return "What budget range are you considering for this type of solution?";
+      if (messageCount <= 4) return "Who else would be involved in the final decision-making process?";
+      return "This helps us match you with vendors who have experience in your investment range and industry.";
     }
     
     return "Could you tell me more about that?";
