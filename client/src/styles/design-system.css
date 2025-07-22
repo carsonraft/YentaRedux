@@ -2,17 +2,17 @@
 
 /* ===== CSS CUSTOM PROPERTIES ===== */
 :root {
-  /* Primary Brand Colors - Maroon/Midnight Palette */
-  --color-primary-50: #fdf2f8;
-  --color-primary-100: #fce7f3;
-  --color-primary-200: #fbcfe8;
-  --color-primary-300: #f9a8d4;
-  --color-primary-400: #f472b6;
-  --color-primary-500: #ec4899;
-  --color-primary-600: #db2777;
-  --color-primary-700: #be185d;
-  --color-primary-800: #9d174d;
-  --color-primary-900: #831843;
+  /* Primary Brand Colors - Professional Blue Palette */
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-200: #bfdbfe;
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-800: #1e40af;
+  --color-primary-900: #1e3a8a;
   
   /* Maroon Colors */
   --color-maroon-50: #fdf2f2;
@@ -285,19 +285,34 @@ html {
   text-rendering: optimizeLegibility;
 }
 
+html {
+  overflow-x: hidden;
+  height: 100%;
+}
+
 body {
   margin: 0;
   padding: 0;
-  background-image: url('bg3.jpg');
-  background-size: cover;
-  background-position: center;
-  background-attachment: fixed;
-  background-repeat: no-repeat;
-  min-height: 100vh;
+  height: 100%;
+  overflow-x: hidden;
   color: var(--color-text-primary);
   font-size: var(--text-base);
   font-weight: var(--font-weight-normal);
   transition: color var(--duration-base) var(--ease-in-out);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-image: url('bg3.jpg');
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  z-index: -1;
 }
 
 /* ===== COMPONENT CLASSES ===== */

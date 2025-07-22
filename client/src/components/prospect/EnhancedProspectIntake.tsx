@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import '../../styles/design-system.css';
 import './EnhancedProspectIntake.css';
 
 interface Message {
@@ -18,7 +19,7 @@ interface ConversationRound {
 }
 
 const EnhancedProspectIntake: React.FC = () => {
-  const [currentStep, setCurrentStep] = useState<'landing' | 'conversation' | 'transition' | 'complete'>('landing');
+  const [currentStep, setCurrentStep] = useState<'landing' | 'form' | 'conversation' | 'transition' | 'complete'>('landing');
   const [currentRound, setCurrentRound] = useState<1 | 2 | 3>(1);
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentMessage, setCurrentMessage] = useState('');
@@ -93,27 +94,56 @@ const EnhancedProspectIntake: React.FC = () => {
   };
 
   const generateAIResponse = (userMessage: string, messageCount: number): string => {
-    // Simplified AI response logic - in real implementation, this would call the OpenAI service
-    const responses = {
-      1: [
-        "That's a great use case! Can you tell me more about your current support volume? How many tickets per month are you handling?",
-        "Interesting challenge. What methods have you tried so far to address this issue?",
-        "I see the urgency. What would success look like for you in 6 months?"
-      ],
-      2: [
-        "Thanks for those details. What technology stack is your team currently using?",
-        "That infrastructure sounds solid. How comfortable is your team with API integrations?",
-        "Good foundation. What's your experience with previous automation projects?"
-      ],
-      3: [
-        "I appreciate the transparency. Based on your company size, typical projects range from $150K-$400K. Does this align with your expectations?",
-        "That timeline makes sense. Who else would be involved in the final decision-making process?",
-        "Perfect. This helps us match you with vendors who have experience in your investment range."
-      ]
-    };
-
-    const roundResponses = responses[currentRound] || responses[1];
-    return roundResponses[Math.min(messageCount % roundResponses.length, roundResponses.length - 1)];
+    const lowerMessage = userMessage.toLowerCase();
+    
+    // Round 1: Project Discovery - Contextual responses based on user input
+    if (currentRound === 1) {
+      // Employee time tracking
+      if (lowerMessage.includes('employee') || lowerMessage.includes('time') || lowerMessage.includes('timesheet') || lowerMessage.includes('tracking')) {
+        if (messageCount <= 2) return "Employee time tracking - that's a challenge many companies face! Are you dealing with manual timesheets, project time allocation, or compliance tracking?";
+        if (messageCount <= 4) return "Manual processes are definitely time-consuming and error-prone. How many employees are you tracking, and what's the biggest pain point - data collection, accuracy, or reporting?";
+        if (messageCount <= 6) return "That sounds frustrating! What would success look like for you - automated time capture, better project insights, or eliminating manual processes entirely?";
+        return "Perfect! AI can help with automatic time tracking, project categorization, and real-time dashboards. What's your timeline for implementing a solution like this?";
+      }
+      
+      // Financial tracking
+      if (lowerMessage.includes('money') || lowerMessage.includes('finance') || lowerMessage.includes('budget') || lowerMessage.includes('expense')) {
+        if (messageCount <= 2) return "Financial tracking - that's a common challenge! Are you looking to track business expenses, project budgets, or financial reporting?";
+        if (messageCount <= 4) return "Spreadsheets are a great start! What's becoming difficult to manage with your current approach? Is it data entry, reporting, or accuracy?";
+        if (messageCount <= 6) return "I understand. What would success look like - automated categorization, real-time reporting, or better financial insights?";
+        return "AI can definitely help with automated expense categorization, anomaly detection, and predictive budgeting. What's your biggest pain point right now?";
+      }
+      
+      // Customer support
+      if (lowerMessage.includes('customer') || lowerMessage.includes('support') || lowerMessage.includes('service')) {
+        if (messageCount <= 2) return "Customer support automation is very popular! What's your current support volume like? How many inquiries do you handle per month?";
+        if (messageCount <= 4) return "What types of customer issues are most common? Are they technical questions, billing issues, or general inquiries?";
+        if (messageCount <= 6) return "That volume definitely justifies automation. What would success look like - faster response times, reduced workload, or better customer satisfaction?";
+        return "AI can help with chatbots, ticket routing, and knowledge base automation. What's your priority - deflecting simple queries or helping agents work faster?";
+      }
+      
+      // Generic fallbacks for Round 1
+      if (messageCount <= 2) return "That's an interesting challenge! Can you tell me more about the specific problem you're trying to solve?";
+      if (messageCount <= 4) return "I see. What methods have you tried so far to address this issue?";
+      if (messageCount <= 6) return "What would success look like for you in 6 months if this problem was solved?";
+      return "That's really helpful context. Based on what you've shared, AI could definitely help streamline this process. What's your timeline for implementing a solution?";
+    }
+    
+    // Round 2: Technical capabilities
+    if (currentRound === 2) {
+      if (messageCount <= 2) return "Thanks for those details. What technology systems does your team currently use?";
+      if (messageCount <= 4) return "That sounds like a solid foundation. How comfortable is your team with integrating new tools or APIs?";
+      return "Good to know. What's your experience with previous automation or AI projects?";
+    }
+    
+    // Round 3: Budget and decision making
+    if (currentRound === 3) {
+      if (messageCount <= 2) return "I appreciate the transparency. What budget range are you considering for this type of solution?";
+      if (messageCount <= 4) return "That makes sense. Who else would be involved in the final decision-making process?";
+      return "Perfect. This helps us match you with vendors who have experience in your investment range and industry.";
+    }
+    
+    return "Could you tell me more about that?";
   };
 
   const completeRound = () => {
@@ -141,79 +171,122 @@ const EnhancedProspectIntake: React.FC = () => {
       <div className="enhanced-intake-container">
         <div className="intake-card">
           <header className="intake-header">
-            <h1>🤖 Yenta AI Matchmaker</h1>
+            <div className="logo-title">
+              <img src={require('../../styles/yentaBGRemoved.png')} alt="Yenta" className="yenta-logo" />
+              <h1>Yenta</h1>
+            </div>
             <button className="help-button">[Help]</button>
           </header>
 
           <div className="hero-section">
-            <h2>🎯 Find Your Perfect AI Vendor in 3 Conversations</h2>
-            
-            <div className="trust-indicators">
-              <span className="trust-item">🔒 Privacy First</span>
-              <span className="trust-item">🎯 AI-Powered</span>
-              <span className="trust-item">⚡ 5-Min Setup</span>
+            <h1 className="hero-headline">Your AI Strategy, Finally a Reality</h1>
+            <h2 className="hero-subheadline">Meet AI vendors who already know your budget, timeline, and needs.</h2>
+          </div>
+
+          <div className="no-nonsense-section">
+            <div className="no-nonsense-item">
+              <div className="no-nonsense-line"></div>
+              <h3 className="no-nonsense-text">No research</h3>
+            </div>
+            <div className="no-nonsense-item">
+              <div className="no-nonsense-line"></div>
+              <h3 className="no-nonsense-text">No cold calls</h3>
+            </div>
+            <div className="no-nonsense-item">
+              <div className="no-nonsense-line"></div>
+              <h3 className="no-nonsense-text">No random pitches</h3>
             </div>
           </div>
 
-          <div className="process-overview">
-            <h3>How Our Enhanced Matching Works:</h3>
-            <div className="rounds-preview">
-              {rounds.map((round) => (
-                <div key={round.number} className="round-preview">
-                  <div className="round-number">Round {round.number}</div>
-                  <div className="round-title">{round.title}</div>
-                  <div className="round-duration">{round.duration}</div>
-                </div>
-              ))}
+          <div className="cta-section">
+            <div className="cta-buttons">
+              <button 
+                className="cta-button-primary"
+                onClick={() => setCurrentStep('form')}
+              >
+                Find AI Vendors
+              </button>
+              <button 
+                className="cta-button-secondary"
+                onClick={() => {
+                  // TODO: Navigate to vendor registration flow
+                  console.log('Navigate to vendor registration');
+                }}
+              >
+                Join as Vendor
+              </button>
+            </div>
+            <div className="cta-subtitle">
+              <span className="cta-for-companies">For companies seeking AI solutions</span>
+              <span className="cta-separator">•</span>
+              <span className="cta-for-vendors">For AI vendors and consultants</span>
             </div>
           </div>
 
-          <div className="benefits-list">
-            <div className="benefit-item">✅ Your budget details stay private</div>
-            <div className="benefit-item">✅ Only meet pre-qualified vendors</div>
-            <div className="benefit-item">✅ AI verifies company legitimacy</div>
-          </div>
+        </div>
+      </div>
+    );
+  }
 
-          <div className="intake-form">
-            <div className="form-group">
-              <label>Company Name:</label>
-              <input
-                type="text"
-                value={formData.companyName}
-                onChange={(e) => setFormData({...formData, companyName: e.target.value})}
-                placeholder="Enter your company name"
-              />
+  if (currentStep === 'form') {
+    return (
+      <div className="enhanced-intake-container">
+        <div className="intake-card">
+          <header className="intake-header">
+            <div className="logo-title">
+              <img src={require('../../styles/yentaBGRemoved.png')} alt="Yenta" className="yenta-logo" />
+              <h1>Yenta</h1>
             </div>
-            <div className="form-group">
-              <label>Your Name:</label>
-              <input
-                type="text"
-                value={formData.contactName}
-                onChange={(e) => setFormData({...formData, contactName: e.target.value})}
-                placeholder="Enter your full name"
-              />
-            </div>
-            <div className="form-group">
-              <label>Email:</label>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
-                placeholder="Enter your work email"
-              />
+            <button className="help-button">[Help]</button>
+          </header>
+
+          <div className="form-section">
+            <h2>Let's get you connected with the right AI vendors</h2>
+            <p>Just a few quick details to personalize your experience:</p>
+
+            <div className="intake-form">
+              <div className="form-group">
+                <label>Company Name:</label>
+                <input
+                  type="text"
+                  value={formData.companyName}
+                  onChange={(e) => setFormData({...formData, companyName: e.target.value})}
+                  placeholder="Enter your company name"
+                />
+              </div>
+              <div className="form-group">
+                <label>Your Name:</label>
+                <input
+                  type="text"
+                  value={formData.contactName}
+                  onChange={(e) => setFormData({...formData, contactName: e.target.value})}
+                  placeholder="Enter your full name"
+                />
+              </div>
+              <div className="form-group">
+                <label>Email:</label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  placeholder="Enter your work email"
+                />
+              </div>
+
+              <button 
+                className="start-assessment-btn"
+                onClick={handleStartAssessment}
+                disabled={!formData.companyName || !formData.contactName || !formData.email}
+              >
+                🚀 Start AI Assessment
+              </button>
             </div>
 
-            <button 
-              className="start-assessment-btn"
-              onClick={handleStartAssessment}
-              disabled={!formData.companyName || !formData.contactName || !formData.email}
-            >
-              🚀 Start AI Assessment
-            </button>
-          </div>
-
-          <div className="ai-quote">
-            "I'll guide you through 3 focused conversations over the next few days to understand your AI needs and match you with the perfect vendors."
+            <div className="form-back">
+              <button onClick={() => setCurrentStep('landing')} className="back-btn">
+                ← Back
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -223,18 +296,19 @@ const EnhancedProspectIntake: React.FC = () => {
   if (currentStep === 'conversation') {
     return (
       <div className="conversation-container">
-        <div className="conversation-header">
-          <h2>Yenta AI Assessment - Round {currentRound}: {rounds[currentRound - 1].title}</h2>
-          <span className="round-indicator">[{currentRound}/3]</span>
-        </div>
-
-        <div className="progress-bar">
-          <div className="progress-label">Progress:</div>
-          <div className="progress-track">
-            <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+        <div className="conversation-card">
+          <div className="conversation-header">
+            <h2>Yenta AI Assessment - Round {currentRound}: {rounds[currentRound - 1].title}</h2>
+            <span className="round-indicator">[{currentRound}/3]</span>
           </div>
-          <div className="progress-percent">{progress}%</div>
-        </div>
+
+          <div className="progress-bar">
+            <div className="progress-label">Progress:</div>
+            <div className="progress-track">
+              <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+            </div>
+            <div className="progress-percent">{progress}%</div>
+          </div>
 
         <div className="messages-container">
           {messages.map((message) => (
@@ -288,16 +362,17 @@ const EnhancedProspectIntake: React.FC = () => {
           💡 Tip: Be specific about numbers, timelines, and impact. This helps us find vendors experienced with your scale.
         </div>
 
-        <div className="round-actions">
-          <button 
-            className="complete-round-btn"
-            onClick={completeRound}
-            disabled={messages.length < 6}
-          >
-            Complete Round {currentRound} ✅
-          </button>
-          <div className="round-help">
-            (Available after 6-8 message exchanges)
+          <div className="round-actions">
+            <button 
+              className="complete-round-btn"
+              onClick={completeRound}
+              disabled={messages.length < 6}
+            >
+              Complete Round {currentRound} ✅
+            </button>
+            <div className="round-help">
+              (Available after 6-8 message exchanges)
+            </div>
           </div>
         </div>
       </div>
