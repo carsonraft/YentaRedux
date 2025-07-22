@@ -121,6 +121,41 @@ const EnhancedProspectIntake: React.FC = () => {
       setCollectedInfo(prev => ({ ...prev, linkedInProfile: `https://${linkedInMatch[0]}` }));
     }
     
+    // Extract industry
+    const industries = ['healthcare', 'finance', 'construction', 'retail', 'manufacturing', 'technology', 'education', 'government'];
+    const industryMatch = industries.find(industry => lowerMessage.includes(industry));
+    if (industryMatch && !collectedInfo.industry) {
+      setCollectedInfo(prev => ({ ...prev, industry: industryMatch }));
+    }
+    
+    // Extract solution type
+    if ((lowerMessage.includes('end-to-end') || lowerMessage.includes('complete solution')) && !collectedInfo.solutionType) {
+      setCollectedInfo(prev => ({ ...prev, solutionType: 'end-to-end' }));
+    } else if ((lowerMessage.includes('add to') || lowerMessage.includes('integrate') || lowerMessage.includes('tech stack')) && !collectedInfo.solutionType) {
+      setCollectedInfo(prev => ({ ...prev, solutionType: 'add_to_stack' }));
+    }
+    
+    // Extract compliance requirements
+    if ((lowerMessage.includes('hipaa') || lowerMessage.includes('compliance') || lowerMessage.includes('government')) && !collectedInfo.complianceRequirements) {
+      setCollectedInfo(prev => ({ ...prev, complianceRequirements: userMessage }));
+    }
+    
+    // Extract decision role
+    if ((lowerMessage.includes('decision maker') || lowerMessage.includes('chief')) && !collectedInfo.decisionRole) {
+      setCollectedInfo(prev => ({ ...prev, decisionRole: 'chief_decision_maker' }));
+    } else if ((lowerMessage.includes('part of') || lowerMessage.includes('team')) && !collectedInfo.decisionRole) {
+      setCollectedInfo(prev => ({ ...prev, decisionRole: 'team_member' }));
+    } else if (lowerMessage.includes('research') && !collectedInfo.decisionRole) {
+      setCollectedInfo(prev => ({ ...prev, decisionRole: 'researcher' }));
+    }
+    
+    // Extract implementation capacity
+    if ((lowerMessage.includes('have team') || lowerMessage.includes('in place')) && !collectedInfo.implementationCapacity) {
+      setCollectedInfo(prev => ({ ...prev, implementationCapacity: 'have_team' }));
+    } else if ((lowerMessage.includes('need someone') || lowerMessage.includes('build it out')) && !collectedInfo.implementationCapacity) {
+      setCollectedInfo(prev => ({ ...prev, implementationCapacity: 'need_help' }));
+    }
+    
     // Extract current process info (if it's a longer explanation)
     if (userMessage.length > 50 && !collectedInfo.currentProcess) {
       setCollectedInfo(prev => ({ ...prev, currentProcess: userMessage }));
@@ -163,52 +198,74 @@ const EnhancedProspectIntake: React.FC = () => {
 
   // Information schema that vendors need
   const [collectedInfo, setCollectedInfo] = useState({
-    // Round 1: Problem Discovery
+    // Round 1: Problem & Context Discovery
     problemType: '', // e.g., "time tracking", "customer support", "financial management"
+    industry: '', // healthcare, finance, construction, etc.
+    solutionType: '', // end-to-end tool vs add to tech stack
+    complianceRequirements: '', // HIPAA, SOX, government, industry-specific
     problemScope: '', // company size impact, scale
     currentProcess: '', // what they're doing now
     painPoints: [], // specific issues they're facing
     companyWebsite: '', // company website URL
     
-    // Round 2: Technical Context  
+    // Round 2: Technical & Implementation Context  
     teamSize: '', // number of people affected
     techStack: [], // current tools/systems
+    implementationCapacity: '', // have team in place vs need someone to build
     techCapability: '', // technical comfort level
     integrationNeeds: '', // what needs to connect
     linkedInProfile: '', // LinkedIn profile for case studies
     
-    // Round 3: Business Context
+    // Round 3: Business & Decision Context
+    decisionRole: '', // researching vs part of team vs chief decision maker
     budgetRange: '', // investment level
     timeline: '', // urgency/timeline
-    decisionMakers: [], // who's involved in decision
+    decisionMakers: [], // who else is involved in decision
     successMetrics: '' // what defines success
   });
 
   const generateAIResponse = (userMessage: string, messageCount: number): string => {
     const lowerMessage = userMessage.toLowerCase();
     
-    // Round 1: Problem Discovery - Fill problem context
+    // Round 1: Problem & Context Discovery - Fill problem context
     if (currentRound === 1) {
       // Determine what info we still need for Round 1
       const needsProblemType = !collectedInfo.problemType;
+      const needsIndustry = !collectedInfo.industry;
+      const needsSolutionType = !collectedInfo.solutionType;
+      const needsCompliance = !collectedInfo.complianceRequirements;
       const needsCurrentProcess = !collectedInfo.currentProcess;
       const needsPainPoints = collectedInfo.painPoints.length === 0;
-      const needsScope = !collectedInfo.problemScope;
       const needsWebsite = !collectedInfo.companyWebsite;
       
       if (needsProblemType) {
         // First, identify the core problem type
         if (lowerMessage.includes('time') || lowerMessage.includes('employee') || lowerMessage.includes('track')) {
-          // Update state with problem type
-          return "Got it - time tracking. What's your current process for tracking employee time?";
+          return "Got it - time tracking. What industry are you in?";
         }
         if (lowerMessage.includes('customer') || lowerMessage.includes('support') || lowerMessage.includes('service')) {
-          return "Customer support - understood. What's your current support setup and volume?";
+          return "Customer support - understood. What industry are you in?";
         }
         if (lowerMessage.includes('finance') || lowerMessage.includes('money') || lowerMessage.includes('expense')) {
-          return "Financial management - got it. What financial processes are you looking to improve?";
+          return "Financial management - got it. What industry are you in?";
         }
         return "What specific business process or challenge are you looking to solve with AI?";
+      }
+      
+      if (needsIndustry) {
+        return "What industry are you in? This helps us find vendors with relevant experience.";
+      }
+      
+      if (!collectedInfo.decisionRole) {
+        return "What's your role in this process - are you researching, part of the decision-making team, or the chief decision maker?";
+      }
+      
+      if (needsSolutionType) {
+        return "Are you looking for an end-to-end tool or something to add to your existing tech stack?";
+      }
+      
+      if (needsCompliance) {
+        return "Any special compliance requirements - HIPAA, government, industry-specific regulations?";
       }
       
       if (needsCurrentProcess) {
@@ -219,10 +276,6 @@ const EnhancedProspectIntake: React.FC = () => {
         return "What are the biggest problems with your current approach?";
       }
       
-      if (needsScope) {
-        return "How many people or transactions does this affect on a typical day/week?";
-      }
-      
       if (needsWebsite) {
         return "What's your company website? This helps us understand your business better.";
       }
@@ -230,10 +283,11 @@ const EnhancedProspectIntake: React.FC = () => {
       return "What would success look like if this problem was solved?";
     }
     
-    // Round 2: Technical Context - Fill technical requirements
+    // Round 2: Technical & Implementation Context - Fill technical requirements
     if (currentRound === 2) {
       const needsTechStack = collectedInfo.techStack.length === 0;
       const needsTeamSize = !collectedInfo.teamSize;
+      const needsImplementationCapacity = !collectedInfo.implementationCapacity;
       const needsTechCapability = !collectedInfo.techCapability;
       const needsLinkedIn = !collectedInfo.linkedInProfile;
       
@@ -243,6 +297,10 @@ const EnhancedProspectIntake: React.FC = () => {
       
       if (needsTeamSize) {
         return "How many people would be using or affected by this solution?";
+      }
+      
+      if (needsImplementationCapacity) {
+        return "Do you have the team in place to implement the solution you're looking for, or do you need someone to build it out for you?";
       }
       
       if (needsTechCapability) {
@@ -274,7 +332,7 @@ const EnhancedProspectIntake: React.FC = () => {
         return "Who else would be involved in evaluating and choosing a vendor?";
       }
       
-      return "Perfect. I have what I need to match you with relevant vendors.";
+      return "At this stage, what do you need - intro to AI concepts, technical deep dive into a solution, sales conversation, or strategy consultation?";
     }
     
     return "Could you tell me more about that?";
