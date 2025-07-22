@@ -79,24 +79,41 @@ const EnhancedProspectIntake: React.FC = () => {
 Given this user response: "${userMessage}"
 And this conversation context: Currently collecting ${currentRound === 1 ? 'problem & context' : currentRound === 2 ? 'technical details' : 'business information'}
 
-Extract any relevant structured information and return ONLY a JSON object with the fields that can be determined:
+Extract both structured data and contextual insights. Return a JSON object with this format:
 
 {
-  "problemType": "time_tracking|customer_support|financial_management|data_analysis|automation|other",
-  "industry": "healthcare|finance|construction|retail|manufacturing|technology|education|government|other",
-  "jobFunction": "individual_contributor|manager|director|vp|c_level",
-  "decisionRole": "researcher|team_member|chief_decision_maker",
-  "solutionType": "end_to_end|add_to_stack",
-  "complianceRequirements": "text description or null",
-  "teamSize": "number as string or null",
-  "techStack": ["tool1", "tool2"] or [],
-  "implementationCapacity": "have_team|need_help",
-  "businessUrgency": "under_3_months|3_to_6_months|1_year_plus",
-  "budgetStatus": "just_exploring|in_planning|awaiting_approval|approved",
-  "budgetRange": "text description or null",
-  "conversationNeeds": "intro_concepts|technical_deep_dive|sales_conversation|strategy_consultation",
-  "companyWebsite": "URL or null",
-  "linkedInProfile": "URL or null"
+  "structured": {
+    "problemType": "time_tracking|customer_support|financial_management|data_analysis|automation|other",
+    "industry": "healthcare|finance|construction|retail|manufacturing|technology|education|government|other", 
+    "jobFunction": "individual_contributor|manager|director|vp|c_level",
+    "decisionRole": "researcher|team_member|chief_decision_maker",
+    "solutionType": "end_to_end|add_to_stack",
+    "implementationCapacity": "have_team|need_help",
+    "businessUrgency": "under_3_months|3_to_6_months|1_year_plus",
+    "budgetStatus": "just_exploring|in_planning|awaiting_approval|approved",
+    "conversationNeeds": "intro_concepts|technical_deep_dive|sales_conversation|strategy_consultation",
+    "teamSize": "number as string or null",
+    "techCapability": "basic|intermediate|advanced"
+  },
+  "context": {
+    "challengeDescription": "Brief description of their specific challenge in their own words",
+    "industryContext": "Industry-specific considerations they mentioned",
+    "authorityContext": "Decision-making authority and stakeholder dynamics", 
+    "urgencyReasoning": "Why they need to solve this by their timeline",
+    "budgetContext": "Budget situation and constraints in their words",
+    "solutionPreferences": "Previous tools tried or preferences mentioned",
+    "implementationConcerns": "Concerns about implementation or adoption",
+    "successCriteria": "What success looks like to them",
+    "complianceDetails": "Specific compliance or regulatory requirements",
+    "stakeholderDynamics": "Who else is involved and how decisions get made"
+  },
+  "artifacts": {
+    "companyWebsite": "URL or null",
+    "linkedInProfile": "URL or null", 
+    "keyQuotes": ["exact quotes that capture pain points or needs"],
+    "currentToolStack": ["tools they currently use"],
+    "painPointDetails": ["specific examples of problems they face"]
+  }
 }
 
 Only include fields where you're confident about the value. Return empty object {} if nothing can be extracted.`;
@@ -116,12 +133,44 @@ Only include fields where you're confident about the value. Return empty object 
         
         // Update state with extracted information
         setCollectedInfo(prev => {
-          const updated = { ...prev };
-          Object.keys(extractedData).forEach(key => {
-            if (extractedData[key] && !updated[key]) {
-              updated[key] = extractedData[key];
-            }
-          });
+          const updated = { 
+            structured: { ...prev.structured },
+            context: { ...prev.context },
+            artifacts: { ...prev.artifacts }
+          };
+          
+          // Update structured data
+          if (extractedData.structured) {
+            Object.keys(extractedData.structured).forEach(key => {
+              if (extractedData.structured[key] && !updated.structured[key]) {
+                updated.structured[key] = extractedData.structured[key];
+              }
+            });
+          }
+          
+          // Update contextual data
+          if (extractedData.context) {
+            Object.keys(extractedData.context).forEach(key => {
+              if (extractedData.context[key] && !updated.context[key]) {
+                updated.context[key] = extractedData.context[key];
+              }
+            });
+          }
+          
+          // Update artifacts
+          if (extractedData.artifacts) {
+            Object.keys(extractedData.artifacts).forEach(key => {
+              if (extractedData.artifacts[key]) {
+                if (Array.isArray(extractedData.artifacts[key])) {
+                  // Merge arrays (e.g., keyQuotes, painPointDetails)
+                  updated.artifacts[key] = [...(updated.artifacts[key] || []), ...extractedData.artifacts[key]];
+                } else if (!updated.artifacts[key]) {
+                  updated.artifacts[key] = extractedData.artifacts[key];
+                }
+              }
+            });
+          }
+          
           return updated;
         });
       }
@@ -137,22 +186,31 @@ Only include fields where you're confident about the value. Return empty object 
     
     // Only extract the most obvious patterns as fallback
     const websiteMatch = userMessage.match(/(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,})/i);
-    if (websiteMatch && !collectedInfo.companyWebsite) {
+    if (websiteMatch && !collectedInfo.artifacts.companyWebsite) {
       let website = websiteMatch[0];
       if (!website.startsWith('http')) {
         website = 'https://' + website;
       }
-      setCollectedInfo(prev => ({ ...prev, companyWebsite: website }));
+      setCollectedInfo(prev => ({ 
+        ...prev, 
+        artifacts: { ...prev.artifacts, companyWebsite: website }
+      }));
     }
     
     const linkedInMatch = userMessage.match(/linkedin\.com\/in\/[a-zA-Z0-9-]+/i);
-    if (linkedInMatch && !collectedInfo.linkedInProfile) {
-      setCollectedInfo(prev => ({ ...prev, linkedInProfile: `https://${linkedInMatch[0]}` }));
+    if (linkedInMatch && !collectedInfo.artifacts.linkedInProfile) {
+      setCollectedInfo(prev => ({ 
+        ...prev, 
+        artifacts: { ...prev.artifacts, linkedInProfile: `https://${linkedInMatch[0]}` }
+      }));
     }
     
     const teamSizeMatch = userMessage.match(/(\d+)\s*(people|employees|users|team|staff)/i);
-    if (teamSizeMatch && !collectedInfo.teamSize) {
-      setCollectedInfo(prev => ({ ...prev, teamSize: teamSizeMatch[1] }));
+    if (teamSizeMatch && !collectedInfo.structured.teamSize) {
+      setCollectedInfo(prev => ({ 
+        ...prev, 
+        structured: { ...prev.structured, teamSize: teamSizeMatch[1] }
+      }));
     }
   };
 
@@ -192,32 +250,44 @@ Only include fields where you're confident about the value. Return empty object 
 
   // Information schema that vendors need
   const [collectedInfo, setCollectedInfo] = useState({
-    // Round 1: Problem & Context Discovery
-    problemType: '', // e.g., "time tracking", "customer support", "financial management"
-    industry: '', // healthcare, finance, construction, etc.
-    jobFunction: '', // individual_contributor, manager, director, vp, c_level
-    solutionType: '', // end-to-end tool vs add to tech stack
-    complianceRequirements: '', // HIPAA, SOX, government, industry-specific
-    problemScope: '', // company size impact, scale
-    currentProcess: '', // what they're doing now
-    painPoints: [], // specific issues they're facing
-    companyWebsite: '', // company website URL
+    // Structured Data (for algorithms & filtering)
+    structured: {
+      problemType: '', // time_tracking|customer_support|financial_management|data_analysis|automation|other
+      industry: '', // healthcare|finance|construction|retail|manufacturing|technology|education|government|other
+      jobFunction: '', // individual_contributor|manager|director|vp|c_level
+      decisionRole: '', // researcher|team_member|chief_decision_maker
+      solutionType: '', // end_to_end|add_to_stack
+      implementationCapacity: '', // have_team|need_help
+      businessUrgency: '', // under_3_months|3_to_6_months|1_year_plus
+      budgetStatus: '', // just_exploring|in_planning|awaiting_approval|approved
+      conversationNeeds: '', // intro_concepts|technical_deep_dive|sales_conversation|strategy_consultation
+      teamSize: '', // number as string
+      techCapability: '', // basic|intermediate|advanced
+    },
     
-    // Round 2: Technical & Implementation Context  
-    teamSize: '', // number of people affected
-    techStack: [], // current tools/systems
-    implementationCapacity: '', // have team in place vs need someone to build
-    techCapability: '', // technical comfort level
-    integrationNeeds: '', // what needs to connect
-    linkedInProfile: '', // LinkedIn profile for case studies
+    // Contextual Data (for vendor insight & personalization)
+    context: {
+      challengeDescription: '', // "We're drowning in manual timesheet approvals..."
+      industryContext: '', // "Healthcare compliance makes this tricky because..."
+      authorityContext: '', // "I'm the CTO but need buy-in from finance..."
+      urgencyReasoning: '', // "Our audit is coming up in Q2..."
+      budgetContext: '', // "We have $50K approved but could go higher for the right solution..."
+      solutionPreferences: '', // "We tried Asana but it was too complex for our team..."
+      implementationConcerns: '', // "Our IT team is swamped with the ERP migration..."
+      successCriteria: '', // "If we could save 10 hours per week per manager..."
+      complianceDetails: '', // "HIPAA compliance is non-negotiable..."
+      stakeholderDynamics: '', // "Finance controls the budget but operations makes the decision..."
+    },
     
-    // Round 3: Business & Decision Context
-    decisionRole: '', // researching vs part of team vs chief decision maker
-    businessUrgency: '', // under_3_months, 3_to_6_months, 1_year_plus
-    budgetStatus: '', // just_exploring, in_planning, awaiting_approval, approved
-    budgetRange: '', // investment level
-    decisionMakers: [], // who else is involved in decision
-    conversationNeeds: '', // intro_concepts, technical_deep_dive, sales_conversation, strategy_consultation
+    // Conversation Artifacts (for reference)
+    artifacts: {
+      companyWebsite: '',
+      linkedInProfile: '',
+      keyQuotes: [], // ["The manual process is killing us", "We need something our field teams can actually use"]
+      painPointDetails: [], // Specific examples and stories
+      currentToolStack: [], // What they're using now
+      conversationSummary: '', // AI-generated summary of the full conversation
+    }
   });
 
   const generateAIResponse = (userMessage: string, messageCount: number): string => {
@@ -226,13 +296,13 @@ Only include fields where you're confident about the value. Return empty object 
     // Round 1: Problem & Context Discovery - Fill problem context
     if (currentRound === 1) {
       // Determine what info we still need for Round 1
-      const needsProblemType = !collectedInfo.problemType;
-      const needsIndustry = !collectedInfo.industry;
-      const needsSolutionType = !collectedInfo.solutionType;
-      const needsCompliance = !collectedInfo.complianceRequirements;
-      const needsCurrentProcess = !collectedInfo.currentProcess;
-      const needsPainPoints = collectedInfo.painPoints.length === 0;
-      const needsWebsite = !collectedInfo.companyWebsite;
+      const needsProblemType = !collectedInfo.structured.problemType;
+      const needsIndustry = !collectedInfo.structured.industry;
+      const needsJobFunction = !collectedInfo.structured.jobFunction;
+      const needsDecisionRole = !collectedInfo.structured.decisionRole;
+      const needsSolutionType = !collectedInfo.structured.solutionType;
+      const needsCompliance = !collectedInfo.context.complianceDetails;
+      const needsWebsite = !collectedInfo.artifacts.companyWebsite;
       
       if (needsProblemType) {
         return "What is the challenge you're trying to solve?";
@@ -242,11 +312,11 @@ Only include fields where you're confident about the value. Return empty object 
         return "What industry are you in? This helps us find vendors with relevant experience.";
       }
       
-      if (!collectedInfo.jobFunction) {
+      if (needsJobFunction) {
         return "What's your role? Individual contributor, manager, director, VP, or C-level?";
       }
       
-      if (!collectedInfo.decisionRole) {
+      if (needsDecisionRole) {
         return "What's your role in this decision? Researching options, part of the decision-making team, or the chief decision maker?";
       }
       
@@ -258,28 +328,20 @@ Only include fields where you're confident about the value. Return empty object 
         return "Any compliance requirements? HIPAA, government regulations, industry-specific standards, or none?";
       }
       
-      if (needsCurrentProcess) {
-        return "How are you handling this currently, and where does that process break down?";
-      }
-      
-      if (needsPainPoints) {
-        return "What are the biggest problems with your current approach?";
-      }
-      
       if (needsWebsite) {
         return "What's your company website? This helps us understand your business better.";
       }
       
-      return "What would success look like if this problem was solved?";
+      return "How are you handling this currently, and where does that process break down?";
     }
     
     // Round 2: Technical & Implementation Context - Fill technical requirements
     if (currentRound === 2) {
-      const needsTechStack = collectedInfo.techStack.length === 0;
-      const needsTeamSize = !collectedInfo.teamSize;
-      const needsImplementationCapacity = !collectedInfo.implementationCapacity;
-      const needsTechCapability = !collectedInfo.techCapability;
-      const needsLinkedIn = !collectedInfo.linkedInProfile;
+      const needsTechStack = !collectedInfo.artifacts.currentToolStack?.length;
+      const needsTeamSize = !collectedInfo.structured.teamSize;
+      const needsImplementationCapacity = !collectedInfo.structured.implementationCapacity;
+      const needsTechCapability = !collectedInfo.structured.techCapability;
+      const needsLinkedIn = !collectedInfo.artifacts.linkedInProfile;
       
       if (needsTechStack) {
         return "What software tools and systems does your team currently use?";
@@ -306,11 +368,11 @@ Only include fields where you're confident about the value. Return empty object 
     
     // Round 3: Business Context - Fill business requirements  
     if (currentRound === 3) {
-      const needsBusinessUrgency = !collectedInfo.businessUrgency;
-      const needsBudgetStatus = !collectedInfo.budgetStatus;
-      const needsBudgetRange = !collectedInfo.budgetRange;
-      const needsDecisionMakers = collectedInfo.decisionMakers.length === 0;
-      const needsConversationNeeds = !collectedInfo.conversationNeeds;
+      const needsBusinessUrgency = !collectedInfo.structured.businessUrgency;
+      const needsBudgetStatus = !collectedInfo.structured.budgetStatus;
+      const needsBudgetContext = !collectedInfo.context.budgetContext;
+      const needsStakeholderDynamics = !collectedInfo.context.stakeholderDynamics;
+      const needsConversationNeeds = !collectedInfo.structured.conversationNeeds;
       
       if (needsBusinessUrgency) {
         return "What's the business urgency to solve this problem - under 3 months, 3-6 months, or 1 year+?";
@@ -320,11 +382,11 @@ Only include fields where you're confident about the value. Return empty object 
         return "Do you have budget to solve this problem - just exploring, in planning, awaiting approval, or approved?";
       }
       
-      if (needsBudgetRange) {
+      if (needsBudgetContext) {
         return "What budget range are you working with for this project?";
       }
       
-      if (needsDecisionMakers) {
+      if (needsStakeholderDynamics) {
         return "Who else would be involved in evaluating and choosing a vendor?";
       }
       
