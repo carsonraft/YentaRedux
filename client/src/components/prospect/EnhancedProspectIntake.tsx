@@ -98,11 +98,35 @@ const EnhancedProspectIntake: React.FC = () => {
       setCollectedInfo(prev => ({ ...prev, budgetRange: userMessage }));
     }
     
-    // Extract timeline urgency
-    if (lowerMessage.includes('urgent') || lowerMessage.includes('asap') || lowerMessage.includes('immediately')) {
-      setCollectedInfo(prev => ({ ...prev, timeline: 'urgent' }));
-    } else if (lowerMessage.includes('month') && !collectedInfo.timeline) {
-      setCollectedInfo(prev => ({ ...prev, timeline: userMessage }));
+    // Extract business urgency
+    if ((lowerMessage.includes('under 3') || lowerMessage.includes('3 months') || lowerMessage.includes('urgent')) && !collectedInfo.businessUrgency) {
+      setCollectedInfo(prev => ({ ...prev, businessUrgency: 'under_3_months' }));
+    } else if ((lowerMessage.includes('3-6') || lowerMessage.includes('6 months')) && !collectedInfo.businessUrgency) {
+      setCollectedInfo(prev => ({ ...prev, businessUrgency: '3_to_6_months' }));
+    } else if ((lowerMessage.includes('1 year') || lowerMessage.includes('year+') || lowerMessage.includes('long term')) && !collectedInfo.businessUrgency) {
+      setCollectedInfo(prev => ({ ...prev, businessUrgency: '1_year_plus' }));
+    }
+    
+    // Extract budget status
+    if (lowerMessage.includes('just exploring') && !collectedInfo.budgetStatus) {
+      setCollectedInfo(prev => ({ ...prev, budgetStatus: 'just_exploring' }));
+    } else if (lowerMessage.includes('in planning') && !collectedInfo.budgetStatus) {
+      setCollectedInfo(prev => ({ ...prev, budgetStatus: 'in_planning' }));
+    } else if (lowerMessage.includes('awaiting approval') && !collectedInfo.budgetStatus) {
+      setCollectedInfo(prev => ({ ...prev, budgetStatus: 'awaiting_approval' }));
+    } else if (lowerMessage.includes('approved') && !collectedInfo.budgetStatus) {
+      setCollectedInfo(prev => ({ ...prev, budgetStatus: 'approved' }));
+    }
+    
+    // Extract conversation needs
+    if (lowerMessage.includes('intro') && !collectedInfo.conversationNeeds) {
+      setCollectedInfo(prev => ({ ...prev, conversationNeeds: 'intro_concepts' }));
+    } else if (lowerMessage.includes('technical deep dive') && !collectedInfo.conversationNeeds) {
+      setCollectedInfo(prev => ({ ...prev, conversationNeeds: 'technical_deep_dive' }));
+    } else if (lowerMessage.includes('sales conversation') && !collectedInfo.conversationNeeds) {
+      setCollectedInfo(prev => ({ ...prev, conversationNeeds: 'sales_conversation' }));
+    } else if (lowerMessage.includes('strategy consultation') && !collectedInfo.conversationNeeds) {
+      setCollectedInfo(prev => ({ ...prev, conversationNeeds: 'strategy_consultation' }));
     }
     
     // Extract website URLs
@@ -232,10 +256,11 @@ const EnhancedProspectIntake: React.FC = () => {
     
     // Round 3: Business & Decision Context
     decisionRole: '', // researching vs part of team vs chief decision maker
+    businessUrgency: '', // under_3_months, 3_to_6_months, 1_year_plus
+    budgetStatus: '', // just_exploring, in_planning, awaiting_approval, approved
     budgetRange: '', // investment level
-    timeline: '', // urgency/timeline
     decisionMakers: [], // who else is involved in decision
-    successMetrics: '' // what defines success
+    conversationNeeds: '', // intro_concepts, technical_deep_dive, sales_conversation, strategy_consultation
   });
 
   const generateAIResponse = (userMessage: string, messageCount: number): string => {
@@ -253,17 +278,7 @@ const EnhancedProspectIntake: React.FC = () => {
       const needsWebsite = !collectedInfo.companyWebsite;
       
       if (needsProblemType) {
-        // First, identify the core problem type
-        if (lowerMessage.includes('time') || lowerMessage.includes('employee') || lowerMessage.includes('track')) {
-          return "Got it - time tracking. What industry are you in?";
-        }
-        if (lowerMessage.includes('customer') || lowerMessage.includes('support') || lowerMessage.includes('service')) {
-          return "Customer support - understood. What industry are you in?";
-        }
-        if (lowerMessage.includes('finance') || lowerMessage.includes('money') || lowerMessage.includes('expense')) {
-          return "Financial management - got it. What industry are you in?";
-        }
-        return "What specific business process or challenge are you looking to solve with AI?";
+        return "What is the challenge you're trying to solve?";
       }
       
       if (needsIndustry) {
@@ -334,23 +349,33 @@ const EnhancedProspectIntake: React.FC = () => {
     
     // Round 3: Business Context - Fill business requirements  
     if (currentRound === 3) {
-      const needsBudget = !collectedInfo.budgetRange;
-      const needsTimeline = !collectedInfo.timeline;
+      const needsBusinessUrgency = !collectedInfo.businessUrgency;
+      const needsBudgetStatus = !collectedInfo.budgetStatus;
+      const needsBudgetRange = !collectedInfo.budgetRange;
       const needsDecisionMakers = collectedInfo.decisionMakers.length === 0;
+      const needsConversationNeeds = !collectedInfo.conversationNeeds;
       
-      if (needsBudget) {
-        return "What budget range are you working with for this project?";
+      if (needsBusinessUrgency) {
+        return "What's the business urgency to solve this problem - under 3 months, 3-6 months, or 1 year+?";
       }
       
-      if (needsTimeline) {
-        return "What's your timeline - is this urgent or more of a future planning exercise?";
+      if (needsBudgetStatus) {
+        return "Do you have budget to solve this problem - just exploring, in planning, awaiting approval, or approved?";
+      }
+      
+      if (needsBudgetRange) {
+        return "What budget range are you working with for this project?";
       }
       
       if (needsDecisionMakers) {
         return "Who else would be involved in evaluating and choosing a vendor?";
       }
       
-      return "At this stage, what do you need - intro to AI concepts, technical deep dive into a solution, sales conversation, or strategy consultation?";
+      if (needsConversationNeeds) {
+        return "At this stage, what do you need - intro to AI concepts, technical deep dive into a solution, sales conversation, or strategy consultation?";
+      }
+      
+      return "Perfect. I have what I need to match you with relevant vendors.";
     }
     
     return "Could you tell me more about that?";
