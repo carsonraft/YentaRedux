@@ -18,6 +18,9 @@ router.post('/extract-info', async (req, res) => {
 });
 
 function extractWithMockAI(userMessage, currentRound) {
+  if (!userMessage) {
+    return {};
+  }
   const lowerMessage = userMessage.toLowerCase();
   const extraction = {};
   
