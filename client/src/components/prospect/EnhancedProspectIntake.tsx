@@ -19,6 +19,58 @@ interface ConversationRound {
   score?: number;
 }
 
+interface ValidationResult {
+  exists: boolean;
+  url?: string;
+  domain?: string;
+  title?: string;
+  confidence: number;
+}
+
+interface ValidationStatus {
+  isValidating: boolean;
+  companyLinkedIn: ValidationResult | null;
+  websiteValidation: ValidationResult | null;
+  personLinkedIn: ValidationResult | null;
+  overallScore: number;
+}
+
+interface StructuredData {
+  problemType: string;
+  industry: string;
+  jobFunction: string;
+  decisionRole: string;
+  solutionType: string;
+  implementationCapacity: string;
+  businessUrgency: string;
+  budgetStatus: string;
+  conversationNeeds: string;
+  teamSize: string;
+  techCapability: string;
+}
+
+interface ContextData {
+  challengeDescription: string;
+  industryContext: string;
+  authorityContext: string;
+  urgencyReasoning: string;
+  budgetContext: string;
+  solutionPreferences: string;
+  implementationConcerns: string;
+  successCriteria: string;
+  complianceDetails: string;
+  stakeholderDynamics: string;
+}
+
+interface ArtifactsData {
+  companyWebsite: string;
+  linkedInProfile: string;
+  keyQuotes: string[];
+  painPointDetails: string[];
+  currentToolStack: string[];
+  conversationSummary: string;
+}
+
 const EnhancedProspectIntake: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<'landing' | 'form' | 'conversation' | 'transition' | 'complete'>('landing');
   const [currentRound, setCurrentRound] = useState<1 | 2 | 3>(1);
@@ -41,11 +93,11 @@ const EnhancedProspectIntake: React.FC = () => {
   const [linkedInData, setLinkedInData] = useState<any>(null);
 
   // Validation state
-  const [validationStatus, setValidationStatus] = useState({
+  const [validationStatus, setValidationStatus] = useState<ValidationStatus>({
     isValidating: false,
-    companyLinkedIn: null, // { exists: boolean, url: string, confidence: number }
-    websiteValidation: null, // { exists: boolean, domain: string, confidence: number }
-    personLinkedIn: null, // { exists: boolean, title: string, confidence: number }
+    companyLinkedIn: null,
+    websiteValidation: null,
+    personLinkedIn: null,
     overallScore: 0
   });
 
@@ -149,8 +201,9 @@ Only include fields where you're confident about the value. Return empty object 
           // Update structured data
           if (extractedData.structured) {
             Object.keys(extractedData.structured).forEach(key => {
-              if (extractedData.structured[key] && !updated.structured[key]) {
-                updated.structured[key] = extractedData.structured[key];
+              const typedKey = key as keyof StructuredData;
+              if (extractedData.structured[typedKey] && !updated.structured[typedKey]) {
+                updated.structured[typedKey] = extractedData.structured[typedKey];
               }
             });
           }
@@ -158,8 +211,9 @@ Only include fields where you're confident about the value. Return empty object 
           // Update contextual data
           if (extractedData.context) {
             Object.keys(extractedData.context).forEach(key => {
-              if (extractedData.context[key] && !updated.context[key]) {
-                updated.context[key] = extractedData.context[key];
+              const typedKey = key as keyof ContextData;
+              if (extractedData.context[typedKey] && !updated.context[typedKey]) {
+                updated.context[typedKey] = extractedData.context[typedKey];
               }
             });
           }
@@ -167,12 +221,17 @@ Only include fields where you're confident about the value. Return empty object 
           // Update artifacts
           if (extractedData.artifacts) {
             Object.keys(extractedData.artifacts).forEach(key => {
-              if (extractedData.artifacts[key]) {
-                if (Array.isArray(extractedData.artifacts[key])) {
+              const typedKey = key as keyof ArtifactsData;
+              if (extractedData.artifacts[typedKey]) {
+                if (Array.isArray(extractedData.artifacts[typedKey])) {
                   // Merge arrays (e.g., keyQuotes, painPointDetails)
-                  updated.artifacts[key] = [...(updated.artifacts[key] || []), ...extractedData.artifacts[key]];
-                } else if (!updated.artifacts[key]) {
-                  updated.artifacts[key] = extractedData.artifacts[key];
+                  const currentValue = updated.artifacts[typedKey];
+                  const extractedValue = extractedData.artifacts[typedKey];
+                  if (Array.isArray(currentValue) && Array.isArray(extractedValue)) {
+                    (updated.artifacts[typedKey] as string[]) = [...currentValue, ...extractedValue];
+                  }
+                } else if (!updated.artifacts[typedKey]) {
+                  updated.artifacts[typedKey] = extractedData.artifacts[typedKey];
                 }
               }
             });
@@ -256,44 +315,43 @@ Only include fields where you're confident about the value. Return empty object 
   };
 
   // Information schema that vendors need
-  const [collectedInfo, setCollectedInfo] = useState({
-    // Structured Data (for algorithms & filtering)
+  const [collectedInfo, setCollectedInfo] = useState<{
+    structured: StructuredData;
+    context: ContextData;
+    artifacts: ArtifactsData;
+  }>({
     structured: {
-      problemType: '', // time_tracking|customer_support|financial_management|data_analysis|automation|other
-      industry: '', // healthcare|finance|construction|retail|manufacturing|technology|education|government|other
-      jobFunction: '', // individual_contributor|manager|director|vp|c_level
-      decisionRole: '', // researcher|team_member|chief_decision_maker
-      solutionType: '', // end_to_end|add_to_stack
-      implementationCapacity: '', // have_team|need_help
-      businessUrgency: '', // under_3_months|3_to_6_months|1_year_plus
-      budgetStatus: '', // just_exploring|in_planning|awaiting_approval|approved
-      conversationNeeds: '', // intro_concepts|technical_deep_dive|sales_conversation|strategy_consultation
-      teamSize: '', // number as string
-      techCapability: '', // basic|intermediate|advanced
+      problemType: '',
+      industry: '',
+      jobFunction: '',
+      decisionRole: '',
+      solutionType: '',
+      implementationCapacity: '',
+      businessUrgency: '',
+      budgetStatus: '',
+      conversationNeeds: '',
+      teamSize: '',
+      techCapability: '',
     },
-    
-    // Contextual Data (for vendor insight & personalization)
     context: {
-      challengeDescription: '', // "We're drowning in manual timesheet approvals..."
-      industryContext: '', // "Healthcare compliance makes this tricky because..."
-      authorityContext: '', // "I'm the CTO but need buy-in from finance..."
-      urgencyReasoning: '', // "Our audit is coming up in Q2..."
-      budgetContext: '', // "We have $50K approved but could go higher for the right solution..."
-      solutionPreferences: '', // "We tried Asana but it was too complex for our team..."
-      implementationConcerns: '', // "Our IT team is swamped with the ERP migration..."
-      successCriteria: '', // "If we could save 10 hours per week per manager..."
-      complianceDetails: '', // "HIPAA compliance is non-negotiable..."
-      stakeholderDynamics: '', // "Finance controls the budget but operations makes the decision..."
+      challengeDescription: '',
+      industryContext: '',
+      authorityContext: '',
+      urgencyReasoning: '',
+      budgetContext: '',
+      solutionPreferences: '',
+      implementationConcerns: '',
+      successCriteria: '',
+      complianceDetails: '',
+      stakeholderDynamics: '',
     },
-    
-    // Conversation Artifacts (for reference)
     artifacts: {
       companyWebsite: '',
       linkedInProfile: '',
-      keyQuotes: [], // ["The manual process is killing us", "We need something our field teams can actually use"]
-      painPointDetails: [], // Specific examples and stories
-      currentToolStack: [], // What they're using now
-      conversationSummary: '', // AI-generated summary of the full conversation
+      keyQuotes: [],
+      painPointDetails: [],
+      currentToolStack: [],
+      conversationSummary: '',
     }
   });
 
