@@ -64,7 +64,9 @@ function extractWithMockAI(userMessage, currentRound) {
   console.log('🎯 EXTRACTED PROBLEM TYPE:', extraction.structured.problemType);
   
   // Industry detection (with correction handling)
-  if (lowerMessage.includes('actually') || lowerMessage.includes('correction') || lowerMessage.includes('change') || lowerMessage.includes('instead')) {
+  if (lowerMessage.includes('actually') || lowerMessage.includes('correction') || lowerMessage.includes('change') || 
+      lowerMessage.includes('instead') || lowerMessage.includes('but i am in') || lowerMessage.includes('wait but') ||
+      lowerMessage === 'tech' || lowerMessage === 'technology') {
     // User is making a correction - prioritize this extraction
     if (lowerMessage.includes('healthcare') || lowerMessage.includes('medical') || lowerMessage.includes('hospital')) {
       extraction.structured.industry = 'healthcare';
@@ -76,7 +78,8 @@ function extractWithMockAI(userMessage, currentRound) {
       extraction.structured.industry = 'retail';
     } else if (lowerMessage.includes('manufacturing') || lowerMessage.includes('factory') || lowerMessage.includes('production')) {
       extraction.structured.industry = 'manufacturing';
-    } else if (lowerMessage.includes('tech') || lowerMessage.includes('software') || lowerMessage.includes('saas')) {
+    } else if (lowerMessage.includes('tech') || lowerMessage.includes('software') || lowerMessage.includes('saas') || 
+               lowerMessage === 'technology' || lowerMessage.includes('it ') || lowerMessage === 'tech') {
       extraction.structured.industry = 'technology';
     }
   } else {
@@ -91,7 +94,8 @@ function extractWithMockAI(userMessage, currentRound) {
       extraction.structured.industry = 'retail';
     } else if (lowerMessage.includes('manufacturing') || lowerMessage.includes('factory') || lowerMessage.includes('production')) {
       extraction.structured.industry = 'manufacturing';
-    } else if (lowerMessage.includes('tech') || lowerMessage.includes('software') || lowerMessage.includes('saas')) {
+    } else if (lowerMessage.includes('tech') || lowerMessage.includes('software') || lowerMessage.includes('saas') || 
+               lowerMessage === 'technology' || lowerMessage.includes('it ') || lowerMessage === 'tech') {
       extraction.structured.industry = 'technology';
     }
   }
