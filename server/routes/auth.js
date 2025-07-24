@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const db = require('../db/pool');
+const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -104,6 +105,23 @@ router.post('/login', [
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: { message: 'Login failed' } });
+  }
+});
+
+// Get current user info (for token validation)
+router.get('/me', authenticateToken, async (req, res) => {
+  try {
+    // User data is already loaded by authenticateToken middleware
+    res.json({
+      user: {
+        id: req.user.id,
+        email: req.user.email,
+        role: req.user.role
+      }
+    });
+  } catch (error) {
+    console.error('Get user info error:', error);
+    res.status(500).json({ error: { message: 'Failed to get user info' } });
   }
 });
 

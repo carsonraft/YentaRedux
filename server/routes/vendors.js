@@ -156,4 +156,79 @@ router.get('/mdf', authenticateToken, requireRole(['vendor']), async (req, res) 
   }
 });
 
+// Get vendor dashboard stats
+router.get('/dashboard/stats', authenticateToken, requireRole(['vendor']), async (req, res) => {
+  try {
+    // Get vendor ID from user
+    const vendorResult = await db.query(
+      'SELECT id FROM vendors WHERE user_id = $1',
+      [req.user.id]
+    );
+    
+    if (vendorResult.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'Vendor profile not found' } });
+    }
+    
+    const vendorId = vendorResult.rows[0].id;
+    
+    // Get meeting stats for this vendor
+    const meetingStats = await db.query(`
+      SELECT 
+        COUNT(*) as total_meetings,
+        COUNT(CASE WHEN status = 'scheduled' THEN 1 END) as scheduled_meetings,
+        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_meetings,
+        COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_meetings,
+        COUNT(CASE WHEN outcome = 'qualified' THEN 1 END) as qualified_leads
+      FROM meetings 
+      WHERE vendor_id = $1
+    `, [vendorId]);
+    
+    // Get MDF budget stats
+    const mdfStats = await db.query(`
+      SELECT 
+        COALESCE(SUM(ma.allocated_amount), 0) as total_allocated,
+        COALESCE(SUM(mt.amount), 0) as total_used,
+        COALESCE(SUM(ma.allocated_amount) - SUM(mt.amount), 0) as remaining_budget
+      FROM mdf_allocations ma
+      LEFT JOIN mdf_transactions mt ON ma.id = mt.mdf_allocation_id
+      WHERE ma.vendor_id = $1
+    `, [vendorId]);
+    
+    // Get recent prospect matches
+    const recentMatches = await db.query(`
+      SELECT 
+        p.company_name,
+        p.contact_name,
+        pc.readiness_category,
+        m.match_score,
+        m.created_at
+      FROM meetings m
+      JOIN prospects p ON m.prospect_id = p.id
+      LEFT JOIN prospect_conversations pc ON p.id = pc.prospect_id
+      WHERE m.vendor_id = $1
+      ORDER BY m.created_at DESC
+      LIMIT 5
+    `, [vendorId]);
+    
+    res.json({
+      meetings: meetingStats.rows[0] || {
+        total_meetings: 0,
+        scheduled_meetings: 0,
+        completed_meetings: 0,
+        cancelled_meetings: 0,
+        qualified_leads: 0
+      },
+      mdf: mdfStats.rows[0] || {
+        total_allocated: 0,
+        total_used: 0,
+        remaining_budget: 0
+      },
+      recent_matches: recentMatches.rows
+    });
+  } catch (error) {
+    console.error('Get vendor dashboard stats error:', error);
+    res.status(500).json({ error: { message: 'Failed to get vendor dashboard stats' } });
+  }
+});
+
 module.exports = router;

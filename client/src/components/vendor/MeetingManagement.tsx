@@ -59,16 +59,17 @@ export const MeetingManagement: React.FC = () => {
 
     try {
       setUpdatingMeeting(true);
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/meetings/${selectedMeeting.id}/outcome`, {
-        method: 'PATCH',
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/meetings/${selectedMeeting.id}/feedback`, {
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           outcome,
-          notes,
-          status: outcome ? 'completed' : selectedMeeting.status
+          feedback: notes,
+          next_steps: '',
+          rating: null
         })
       });
 

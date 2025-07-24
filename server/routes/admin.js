@@ -347,4 +347,61 @@ router.get('/dashboard/stats', authenticateToken, requireRole(['admin']), async 
   }
 });
 
+// Get dashboard activities feed
+router.get('/dashboard/activities', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const { limit = 20, offset = 0 } = req.query;
+    
+    // Get recent activities across the platform
+    const activities = await db.query(`
+      SELECT 
+        'prospect' as type,
+        p.id as item_id,
+        p.company_name,
+        p.contact_name,
+        pc.readiness_category as status,
+        pc.created_at as activity_date,
+        'New prospect conversation completed' as description
+      FROM prospects p
+      LEFT JOIN prospect_conversations pc ON p.id = pc.prospect_id
+      WHERE pc.created_at IS NOT NULL
+      
+      UNION ALL
+      
+      SELECT 
+        'meeting' as type,
+        m.id as item_id,
+        p.company_name,
+        p.contact_name,
+        m.status,
+        m.created_at as activity_date,
+        CONCAT('Meeting ', m.status, ' with ', v.company_name) as description
+      FROM meetings m
+      JOIN prospects p ON m.prospect_id = p.id
+      JOIN vendors v ON m.vendor_id = v.id
+      
+      UNION ALL
+      
+      SELECT 
+        'vendor' as type,
+        v.id as item_id,
+        v.company_name,
+        NULL as contact_name,
+        'active' as status,
+        v.created_at as activity_date,
+        'New vendor registered' as description
+      FROM vendors v
+      WHERE v.created_at >= NOW() - INTERVAL '30 days'
+      
+      ORDER BY activity_date DESC
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
+    
+    res.json({ activities: activities.rows });
+  } catch (error) {
+    console.error('Get dashboard activities error:', error);
+    res.status(500).json({ error: { message: 'Failed to get dashboard activities' } });
+  }
+});
+
 module.exports = router;
