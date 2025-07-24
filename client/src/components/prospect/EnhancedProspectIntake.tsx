@@ -189,6 +189,7 @@ Only include fields where you're confident about the value. Return empty object 
       
       if (response.ok) {
         const extractedData = await response.json();
+        console.log('🤖 AI Extraction Result:', extractedData);
         
         // Update state with extracted information
         setCollectedInfo(prev => {
@@ -202,7 +203,7 @@ Only include fields where you're confident about the value. Return empty object 
           if (extractedData.structured) {
             Object.keys(extractedData.structured).forEach(key => {
               const typedKey = key as keyof StructuredData;
-              if (extractedData.structured[typedKey] && !updated.structured[typedKey]) {
+              if (extractedData.structured[typedKey] && (!updated.structured[typedKey] || updated.structured[typedKey] === '')) {
                 updated.structured[typedKey] = extractedData.structured[typedKey];
               }
             });
@@ -212,7 +213,7 @@ Only include fields where you're confident about the value. Return empty object 
           if (extractedData.context) {
             Object.keys(extractedData.context).forEach(key => {
               const typedKey = key as keyof ContextData;
-              if (extractedData.context[typedKey] && !updated.context[typedKey]) {
+              if (extractedData.context[typedKey] && (!updated.context[typedKey] || updated.context[typedKey] === '')) {
                 updated.context[typedKey] = extractedData.context[typedKey];
               }
             });
@@ -230,13 +231,14 @@ Only include fields where you're confident about the value. Return empty object 
                   if (Array.isArray(currentValue) && Array.isArray(extractedValue)) {
                     (updated.artifacts[typedKey] as string[]) = [...currentValue, ...extractedValue];
                   }
-                } else if (!updated.artifacts[typedKey]) {
+                } else if (!updated.artifacts[typedKey] || updated.artifacts[typedKey] === '') {
                   updated.artifacts[typedKey] = extractedData.artifacts[typedKey];
                 }
               }
             });
           }
           
+          console.log('📝 Updated collected info:', updated);
           return updated;
         });
       }
@@ -361,13 +363,24 @@ Only include fields where you're confident about the value. Return empty object 
     // Round 1: Problem & Context Discovery - Fill problem context
     if (currentRound === 1) {
       // Determine what info we still need for Round 1
-      const needsProblemType = !collectedInfo.structured.problemType;
-      const needsIndustry = !collectedInfo.structured.industry;
-      const needsJobFunction = !collectedInfo.structured.jobFunction;
-      const needsDecisionRole = !collectedInfo.structured.decisionRole;
-      const needsSolutionType = !collectedInfo.structured.solutionType;
-      const needsCompliance = !collectedInfo.context.complianceDetails;
-      const needsWebsite = !collectedInfo.artifacts.companyWebsite;
+      const needsProblemType = !collectedInfo.structured.problemType || collectedInfo.structured.problemType === '';
+      const needsIndustry = !collectedInfo.structured.industry || collectedInfo.structured.industry === '';
+      const needsJobFunction = !collectedInfo.structured.jobFunction || collectedInfo.structured.jobFunction === '';
+      const needsDecisionRole = !collectedInfo.structured.decisionRole || collectedInfo.structured.decisionRole === '';
+      const needsSolutionType = !collectedInfo.structured.solutionType || collectedInfo.structured.solutionType === '';
+      const needsCompliance = !collectedInfo.context.complianceDetails || collectedInfo.context.complianceDetails === '';
+      const needsWebsite = !collectedInfo.artifacts.companyWebsite || collectedInfo.artifacts.companyWebsite === '';
+      
+      console.log('🔍 Round 1 needs check:', {
+        needsProblemType,
+        needsIndustry,
+        needsJobFunction,
+        needsDecisionRole,
+        needsSolutionType,
+        needsCompliance,
+        needsWebsite,
+        currentInfo: collectedInfo.structured
+      });
       
       if (needsProblemType) {
         return "What is the challenge you're trying to solve?";
