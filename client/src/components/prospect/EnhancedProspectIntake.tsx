@@ -115,7 +115,7 @@ const EnhancedProspectIntake: React.FC = () => {
 
   const startConversationRound = () => {
     const welcomeMessages = {
-      1: `Hi ${formData.companyName}! Let's start by understanding your specific AI project needs. What business problem are you trying to solve with AI?`,
+      1: `Hi ${formData.contactName}! Let's start by understanding your specific AI project needs. What business problem are you trying to solve with AI?`,
       2: `Great progress! Now let's dive into the technical details. Tell me about your current technology infrastructure and team capabilities.`,
       3: `Excellent! For our final conversation, let's discuss investment levels and decision-making process. This helps us match you with appropriate vendors.`
     };
