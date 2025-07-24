@@ -24,6 +24,28 @@ function extractWithMockAI(userMessage, currentRound) {
   const lowerMessage = userMessage.toLowerCase();
   const extraction = {};
   
+  // Problem type detection (CRITICAL: This was missing and causing conversation loops)
+  if (lowerMessage.includes('customer service') || lowerMessage.includes('support') || lowerMessage.includes('helpdesk')) {
+    extraction.problemType = 'customer_support';
+  } else if (lowerMessage.includes('data') || lowerMessage.includes('analytics') || lowerMessage.includes('reporting')) {
+    extraction.problemType = 'data_analysis';
+  } else if (lowerMessage.includes('automat') || lowerMessage.includes('process') || lowerMessage.includes('workflow')) {
+    extraction.problemType = 'automation';
+  } else if (lowerMessage.includes('financial') || lowerMessage.includes('money') || lowerMessage.includes('accounting') || lowerMessage.includes('billing')) {
+    extraction.problemType = 'financial_management';
+  } else if (lowerMessage.includes('track') || lowerMessage.includes('time') || lowerMessage.includes('hours') || lowerMessage.includes('timesheet')) {
+    extraction.problemType = 'time_tracking';
+  } else if (lowerMessage.includes('hiring') || lowerMessage.includes('recruitment') || lowerMessage.includes('ats') || lowerMessage.includes('applicant tracking')) {
+    extraction.problemType = 'other'; // ATS modernization falls under 'other'
+  } else if (lowerMessage.includes('ai') || lowerMessage.includes('artificial intelligence') || lowerMessage.includes('machine learning') || lowerMessage.includes('semantic')) {
+    extraction.problemType = 'other'; // AI/semantic understanding projects
+  } else if (lowerMessage.includes('crm') || lowerMessage.includes('sales') || lowerMessage.includes('lead')) {
+    extraction.problemType = 'other';
+  } else {
+    // Default fallback - if user mentions any business problem, classify as 'other'
+    extraction.problemType = 'other';
+  }
+  
   // Mock intelligent extraction based on patterns
   if (lowerMessage.includes('healthcare') || lowerMessage.includes('medical')) {
     extraction.industry = 'healthcare';
