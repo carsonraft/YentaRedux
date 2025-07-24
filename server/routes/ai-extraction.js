@@ -63,41 +63,76 @@ function extractWithMockAI(userMessage, currentRound) {
   
   console.log('🎯 EXTRACTED PROBLEM TYPE:', extraction.structured.problemType);
   
-  // Industry detection (with correction handling)
-  if (lowerMessage.includes('actually') || lowerMessage.includes('correction') || lowerMessage.includes('change') || 
-      lowerMessage.includes('instead') || lowerMessage.includes('but i am in') || lowerMessage.includes('wait but') ||
-      lowerMessage === 'tech' || lowerMessage === 'technology') {
-    // User is making a correction - prioritize this extraction
-    if (lowerMessage.includes('healthcare') || lowerMessage.includes('medical') || lowerMessage.includes('hospital')) {
-      extraction.structured.industry = 'healthcare';
-    } else if (lowerMessage.includes('finance') || lowerMessage.includes('bank') || lowerMessage.includes('financial')) {
-      extraction.structured.industry = 'finance';
-    } else if (lowerMessage.includes('construction') || lowerMessage.includes('building') || lowerMessage.includes('contractor')) {
-      extraction.structured.industry = 'construction';
-    } else if (lowerMessage.includes('retail') || lowerMessage.includes('store') || lowerMessage.includes('shop')) {
-      extraction.structured.industry = 'retail';
-    } else if (lowerMessage.includes('manufacturing') || lowerMessage.includes('factory') || lowerMessage.includes('production')) {
-      extraction.structured.industry = 'manufacturing';
-    } else if (lowerMessage.includes('tech') || lowerMessage.includes('software') || lowerMessage.includes('saas') || 
-               lowerMessage === 'technology' || lowerMessage.includes('it ') || lowerMessage === 'tech') {
-      extraction.structured.industry = 'technology';
+  // Industry detection with dual capture: exact term + category
+  const extractIndustry = (message) => {
+    const lower = message.toLowerCase();
+    
+    // Capture exact industry terms first
+    const industryTerms = [
+      'fintech', 'crypto', 'blockchain', 'defi', 'aerospace', 'defense', 'biotech', 
+      'edtech', 'proptech', 'insurtech', 'regtech', 'martech', 'adtech',
+      'healthcare', 'medical', 'hospital', 'pharma', 'finance', 'banking',
+      'construction', 'building', 'retail', 'e-commerce', 'manufacturing',
+      'technology', 'software', 'saas', 'gaming', 'entertainment', 'media',
+      'education', 'government', 'nonprofit', 'energy', 'oil', 'renewable',
+      'automotive', 'transportation', 'logistics', 'real estate', 'hospitality',
+      'food', 'agriculture', 'legal', 'consulting', 'cybersecurity'
+    ];
+    
+    let exactIndustry = '';
+    let category = '';
+    
+    // Find the most specific industry term mentioned
+    for (const term of industryTerms) {
+      if (lower.includes(term)) {
+        exactIndustry = term;
+        break;
+      }
     }
-  } else {
-    // Normal industry detection
-    if (lowerMessage.includes('healthcare') || lowerMessage.includes('medical') || lowerMessage.includes('hospital')) {
-      extraction.structured.industry = 'healthcare';
-    } else if (lowerMessage.includes('finance') || lowerMessage.includes('bank') || lowerMessage.includes('financial')) {
-      extraction.structured.industry = 'finance';
-    } else if (lowerMessage.includes('construction') || lowerMessage.includes('building') || lowerMessage.includes('contractor')) {
-      extraction.structured.industry = 'construction';
-    } else if (lowerMessage.includes('retail') || lowerMessage.includes('store') || lowerMessage.includes('shop')) {
-      extraction.structured.industry = 'retail';
-    } else if (lowerMessage.includes('manufacturing') || lowerMessage.includes('factory') || lowerMessage.includes('production')) {
-      extraction.structured.industry = 'manufacturing';
-    } else if (lowerMessage.includes('tech') || lowerMessage.includes('software') || lowerMessage.includes('saas') || 
-               lowerMessage === 'technology' || lowerMessage.includes('it ') || lowerMessage === 'tech') {
-      extraction.structured.industry = 'technology';
+    
+    // Map to broader categories for vendor matching
+    if (exactIndustry) {
+      if (['fintech', 'crypto', 'blockchain', 'defi', 'technology', 'software', 'saas', 'gaming', 'edtech', 'proptech', 'insurtech', 'regtech', 'martech', 'adtech', 'cybersecurity'].includes(exactIndustry)) {
+        category = 'technology';
+      } else if (['healthcare', 'medical', 'hospital', 'pharma', 'biotech'].includes(exactIndustry)) {
+        category = 'healthcare';
+      } else if (['finance', 'banking'].includes(exactIndustry)) {
+        category = 'finance';
+      } else if (['construction', 'building', 'real estate'].includes(exactIndustry)) {
+        category = 'construction';
+      } else if (['retail', 'e-commerce'].includes(exactIndustry)) {
+        category = 'retail';
+      } else if (['manufacturing', 'automotive', 'aerospace', 'defense'].includes(exactIndustry)) {
+        category = 'manufacturing';
+      } else if (['education', 'government', 'nonprofit'].includes(exactIndustry)) {
+        category = 'government';
+      } else if (['energy', 'oil', 'renewable'].includes(exactIndustry)) {
+        category = 'energy';
+      } else if (['food', 'agriculture', 'hospitality'].includes(exactIndustry)) {
+        category = 'retail';
+      } else {
+        category = 'other';
+      }
     }
+    
+    return { exactIndustry, category };
+  };
+  
+  // Apply dual industry detection
+  const isCorrection = lowerMessage.includes('actually') || lowerMessage.includes('correction') || 
+                      lowerMessage.includes('change') || lowerMessage.includes('instead') || 
+                      lowerMessage.includes('but i am in') || lowerMessage.includes('wait but') ||
+                      lowerMessage === 'tech' || lowerMessage === 'technology';
+  
+  const industryData = extractIndustry(userMessage);
+  if (industryData.exactIndustry) {
+    extraction.structured.industry = industryData.exactIndustry;
+    extraction.structured.industryCategory = industryData.category;
+    console.log('🏢 INDUSTRY EXTRACTED:', {
+      exact: industryData.exactIndustry,
+      category: industryData.category,
+      isCorrection
+    });
   }
   
   // Job function detection
