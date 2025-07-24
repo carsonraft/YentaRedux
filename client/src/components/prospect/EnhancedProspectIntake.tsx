@@ -177,7 +177,7 @@ Extract both structured data and contextual insights. Return a JSON object with 
 
 Only include fields where you're confident about the value. Return empty object {} if nothing can be extracted.`;
 
-      const response = await fetch('/api/ai/extract-info', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/ai/extract-info`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
