@@ -30,12 +30,11 @@ router.post('/start', [
 
     const prospect = result.rows[0];
 
-    // Start AI conversation
-    const messages = await openaiService.startConversation(company_name);
+    const messages = await openaiService.startRoundConversation(1, null, company_name);
 
-    // Save initial conversation
+    // Save initial conversation round
     await db.query(
-      'INSERT INTO prospect_conversations (prospect_id, messages) VALUES ($1, $2)',
+      'INSERT INTO prospect_conversation_rounds (prospect_id, round_number, messages) VALUES ($1, 1, $2)',
       [prospect.id, JSON.stringify(messages)]
     );
 
@@ -52,7 +51,7 @@ router.post('/start', [
   }
 });
 
-// Continue conversation
+// Continue conversation (multi-round)
 router.post('/chat/:sessionId', [
   body('message').trim().isLength({ min: 1 })
 ], async (req, res) => {
@@ -65,13 +64,14 @@ router.post('/chat/:sessionId', [
     const { sessionId } = req.params;
     const { message } = req.body;
 
-    // Get prospect and current conversation
+    // Get prospect and current round
     const prospectResult = await db.query(
-      `SELECT p.*, pc.messages, pc.id as conversation_id
+      `SELECT p.id, p.current_round, p.company_name, p.contact_name, p.email,
+              pcr.messages, pcr.id as round_id
        FROM prospects p
-       LEFT JOIN prospect_conversations pc ON p.id = pc.prospect_id
+       LEFT JOIN prospect_conversation_rounds pcr ON p.id = pcr.prospect_id AND p.current_round = pcr.round_number
        WHERE p.session_id = $1
-       ORDER BY pc.created_at DESC
+       ORDER BY pcr.created_at DESC
        LIMIT 1`,
       [sessionId]
     );
@@ -82,6 +82,7 @@ router.post('/chat/:sessionId', [
 
     const prospect = prospectResult.rows[0];
     const currentMessages = prospect.messages || [];
+    const currentRound = prospect.current_round;
 
     // Continue conversation with OpenAI
     const { messages: updatedMessages, response } = await openaiService.continueConversation(
@@ -89,16 +90,41 @@ router.post('/chat/:sessionId', [
       message
     );
 
-    // Update conversation in database
+    // Update current round messages
     await db.query(
-      'UPDATE prospect_conversations SET messages = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-      [JSON.stringify(updatedMessages), prospect.conversation_id]
+      'UPDATE prospect_conversation_rounds SET messages = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [JSON.stringify(updatedMessages), prospect.round_id]
     );
 
-    res.json({
-      response: response,
-      messages: updatedMessages
-    });
+    // Assess if the round is complete
+    const roundAssessment = await openaiService.assessRoundCompleteness(updatedMessages, currentRound);
+
+    if (roundAssessment.is_complete && roundAssessment.ready_for_next_round) {
+      // Advance to the next round
+      const nextRound = currentRound + 1;
+      await db.query('UPDATE prospects SET current_round = $1 WHERE id = $2', [nextRound, prospect.id]);
+
+      // Start the new round
+      const newRoundMessages = await openaiService.startRoundConversation(nextRound, updatedMessages, prospect.company_name);
+      await db.query(
+        'INSERT INTO prospect_conversation_rounds (prospect_id, round_number, messages) VALUES ($1, $2, $3)',
+        [prospect.id, nextRound, JSON.stringify(newRoundMessages)]
+      );
+
+      res.json({
+        response: newRoundMessages[newRoundMessages.length - 1].content,
+        messages: newRoundMessages,
+        round_completed: true,
+        next_round: nextRound
+      });
+
+    } else {
+      res.json({
+        response: response,
+        messages: updatedMessages,
+        round_completed: false
+      });
+    }
 
   } catch (error) {
     console.error('Continue conversation error:', error);
@@ -106,82 +132,7 @@ router.post('/chat/:sessionId', [
   }
 });
 
-// Complete conversation and score readiness
-router.post('/complete/:sessionId', async (req, res) => {
-  try {
-    const { sessionId } = req.params;
 
-    // Get prospect and conversation
-    const result = await db.query(
-      `SELECT p.*, pc.messages, pc.id as conversation_id
-       FROM prospects p
-       JOIN prospect_conversations pc ON p.id = pc.prospect_id
-       WHERE p.session_id = $1
-       ORDER BY pc.created_at DESC
-       LIMIT 1`,
-      [sessionId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: { message: 'Session not found' } });
-    }
-
-    const prospect = result.rows[0];
-    const messages = prospect.messages || [];
-
-    // Score readiness with AI
-    const readinessScore = await openaiService.scoreReadiness(messages);
-    
-    // Extract project details
-    const projectDetails = await openaiService.extractProjectDetails(messages);
-
-    // Update conversation with scoring
-    await db.query(
-      `UPDATE prospect_conversations SET 
-       readiness_score = $1, 
-       readiness_category = $2, 
-       score_breakdown = $3, 
-       project_details = $4,
-       ai_summary = $5,
-       updated_at = CURRENT_TIMESTAMP
-       WHERE id = $6`,
-      [
-        readinessScore.total_score,
-        readinessScore.category,
-        JSON.stringify(readinessScore),
-        JSON.stringify(projectDetails),
-        readinessScore.summary,
-        prospect.conversation_id
-      ]
-    );
-
-    // Send hot prospect alert if score is high
-    if (readinessScore.total_score >= 80 && readinessScore.category === 'HOT') {
-      try {
-        await emailService.sendHotProspectAlert(prospect, {
-          readiness_score: readinessScore.total_score,
-          readiness_category: readinessScore.category,
-          ai_summary: readinessScore.summary
-        });
-      } catch (emailError) {
-        console.error('Failed to send hot prospect alert:', emailError);
-        // Don't fail the scoring if email fails
-      }
-    }
-
-    res.json({
-      readiness_score: readinessScore.total_score,
-      category: readinessScore.category,
-      score_breakdown: readinessScore,
-      project_details: projectDetails,
-      summary: readinessScore.summary
-    });
-
-  } catch (error) {
-    console.error('Complete conversation error:', error);
-    res.status(500).json({ error: { message: 'Failed to complete conversation' } });
-  }
-});
 
 // Get prospect conversation (for admin review)
 router.get('/:sessionId', async (req, res) => {
@@ -189,13 +140,11 @@ router.get('/:sessionId', async (req, res) => {
     const { sessionId } = req.params;
 
     const result = await db.query(
-      `SELECT p.*, pc.messages, pc.readiness_score, pc.readiness_category, 
-              pc.score_breakdown, pc.project_details, pc.ai_summary
+      `SELECT p.*, pcr.messages, pcr.round_number, pcr.ai_summary
        FROM prospects p
-       JOIN prospect_conversations pc ON p.id = pc.prospect_id
+       LEFT JOIN prospect_conversation_rounds pcr ON p.id = pcr.prospect_id
        WHERE p.session_id = $1
-       ORDER BY pc.created_at DESC
-       LIMIT 1`,
+       ORDER BY pcr.round_number DESC`,
       [sessionId]
     );
 
@@ -203,27 +152,26 @@ router.get('/:sessionId', async (req, res) => {
       return res.status(404).json({ error: { message: 'Prospect not found' } });
     }
 
-    const prospect = result.rows[0];
-    
+    const prospectData = result.rows[0];
+    const conversationRounds = result.rows.map(r => ({
+      round_number: r.round_number,
+      messages: r.messages,
+      summary: r.ai_summary
+    }));
+
     res.json({
       prospect: {
-        id: prospect.id,
-        session_id: prospect.session_id,
-        company_name: prospect.company_name,
-        contact_name: prospect.contact_name,
-        email: prospect.email,
-        industry: prospect.industry,
-        company_size: prospect.company_size,
-        created_at: prospect.created_at
+        id: prospectData.id,
+        session_id: prospectData.session_id,
+        company_name: prospectData.company_name,
+        contact_name: prospectData.contact_name,
+        email: prospectData.email,
+        industry: prospectData.industry,
+        company_size: prospectData.company_size,
+        current_round: prospectData.current_round,
+        created_at: prospectData.created_at
       },
-      conversation: {
-        messages: prospect.messages,
-        readiness_score: prospect.readiness_score,
-        category: prospect.readiness_category,
-        score_breakdown: prospect.score_breakdown,
-        project_details: prospect.project_details,
-        summary: prospect.ai_summary
-      }
+      conversation_rounds: conversationRounds
     });
 
   } catch (error) {
@@ -238,7 +186,7 @@ router.get('/list', async (req, res) => {
     const result = await db.query(
       `SELECT 
         p.id, p.session_id, p.company_name, p.contact_name, p.email, 
-        p.industry, p.company_size, p.created_at,
+        p.industry, p.company_size, p.created_at, p.current_round,
         pc.readiness_score, pc.readiness_category, pc.ai_summary
        FROM prospects p
        LEFT JOIN prospect_conversations pc ON p.id = pc.prospect_id
