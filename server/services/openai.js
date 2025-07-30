@@ -1,227 +1,139 @@
 const OpenAI = require('openai');
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+class OpenAIService {
+  constructor() {
+    this.openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
 
-// Note: Services integrated via API routes to avoid circular dependencies
+    this.INTAKE_SYSTEM_PROMPT = `You are an AI assistant helping qualify businesses for AI implementation projects. Your goal is to understand their REAL readiness, not just interest. 
 
-// System prompts (imported from our prompts system)
-const INTAKE_SYSTEM_PROMPT = `You are an AI assistant helping qualify businesses for AI implementation projects. 
-Your goal is to understand their REAL readiness, not just interest.
-
-Guidelines:
+Guidelines: 
 - Be conversational, not formal
-- Ask follow-up questions to dig deeper
-- Detect vague answers and probe for specifics
-- Identify budget, timeline, and use case clarity
-- Flag copy-paste or generic responses
+- Ask ONE focused question at a time - never ask multiple questions in a single response
+- Ask follow-up questions to dig deeper into their specific answer
+- Detect vague answers and probe for specifics with a single targeted question
+- Build on what they just told you before moving to new topics
+- Keep responses concise and focused
+- When appropriate, provide examples to guide them toward specific, useful answers
+
+Question Flow Priority:
+1. First understand their specific problem/challenge
+2. Then dive deeper into that specific problem
+3. Only after understanding the problem well, ask about other aspects
+
+When asking about problems, guide them with examples like:
+- "hiring and recruitment automation"
+- "customer support automation" 
+- "data analysis and reporting"
+- "financial management processes"
+- "sales and marketing automation"
+- "time tracking and productivity"
+- "inventory management"
+- "content creation"
+- "document processing"
+- "quality assurance"
+- "predictive analytics"
+- "process automation"
 
 Start with: "Hi! I'm here to understand your AI project needs. What specific business problem are you trying to solve with AI?"`;
+    this.ROUND_1_SYSTEM_PROMPT = `You are conducting Round 1 of AI project qualification: PROJECT DISCOVERY. 
 
-const FOLLOW_UP_PROMPT = `Based on their response, ask the MOST important clarifying question.
+Goals: Identify specific business problem and pain points. Understand current processes and their limitations. Assess initial urgency and business impact. 
 
-If they mention:
-- General interest → Ask for specific use case
-- Use case but no timeline → Ask about urgency/timeline
-- Timeline but no budget → Ask about budget range
-- All basics covered → Ask about technical requirements
-- Vague answers → Ask for concrete examples
-
-Previous response: {user_response}
-
-Generate ONE follow-up question that digs deeper.`;
-
-const AI_READINESS_PROMPT = `Score this prospect's AI readiness based on their conversation.
-
-Conversation: {full_conversation}
-
-Scoring Rubric:
-1. **Budget Reality (0-25)**
-   - 20-25: Specific budget mentioned or clear enterprise priority
-   - 10-19: Indirect budget indicators (team size, current spend)
-   - 0-9: No budget indicators or "just exploring"
-
-2. **Use Case Clarity (0-25)**
-   - 20-25: Specific problem, measurable goals, data identified
-   - 10-19: General use case but missing key details
-   - 0-9: Vague ideas, buzzwords, no clear problem
-
-3. **Timeline Urgency (0-25)**
-   - 20-25: Launching in <6 months, executive mandate
-   - 10-19: 6-12 month timeline, active project
-   - 0-9: "Someday", "exploring", 3-4 years away
-
-4. **Technical Readiness (0-25)**
-   - 20-25: Data infrastructure ready, technical team in place
-   - 10-19: Some technical capability, gaps identified
-   - 0-9: No technical discussion, unrealistic expectations
-
-Total Score Interpretation:
-- 80-100: HOT - Ready now, book meetings immediately
-- 60-79: WARM - Worth pursuing, needs some education
-- 40-59: COOL - 6-12 months away, nurture
-- 0-39: COLD - 3-4 years away, don't waste vendor time
-
-Return JSON with scores, total, interpretation, and key evidence quotes.`;
-
-const VENDOR_MATCH_PROMPT = `Match this prospect with the best vendors.
-
-PROSPECT NEEDS:
-{prospect_summary}
-- Industry: {industry}
-- Use Case: {use_case}
-- Budget Range: {budget}
-- Timeline: {timeline}
-- Technical Requirements: {requirements}
-
-AVAILABLE VENDORS:
-{vendor_list_json}
-
-For each vendor, provide:
-1. Match Score (0-100)
-2. Top 3 reasons they match
-3. Potential concerns
-4. Suggested talking points
-
-Prioritize vendors who:
-- Have proven experience in prospect's industry
-- Solved similar use cases
-- Fit the budget range
-- Can deliver in timeline
-
-Return top 5 matches ranked by score.`;
-
-// Enhanced prompts for multi-round conversations
-const ROUND_1_SYSTEM_PROMPT = `You are conducting Round 1 of AI project qualification: PROJECT DISCOVERY.
-
-Goals:
-- Identify specific business problem and pain points
-- Understand current processes and their limitations
-- Assess initial urgency and business impact
-- Establish communication quality baseline
-
-Guidelines:
-- Ask 2-3 focused questions maximum
+Guidelines: 
+- Ask ONE focused question at a time - never multiple questions in a single response
 - Probe for specific examples, not generalities
-- If they give vague answers, ask "Can you give me a specific example?"
+- If they give vague answers, ask "Can you give me a specific example?" 
 - Focus on the WHAT and WHY, save technical details for Round 2
-- End with: "Thanks! I'd like to dive deeper into the technical side in our next conversation."
+- Build naturally on their previous answer before moving to new topics
+- When appropriate, guide them with examples of good answers
+
+Example answers to guide them toward:
+- Industry: "healthcare", "technology", "finance", "retail", "manufacturing", "education", "real estate", "consulting", "legal", "nonprofit"
+- Job Role: "I'm a manager", "I'm a director", "I'm the CEO", "I'm a VP", "I'm the founder", "I'm a consultant"
+- Decision Authority: "I make the final decision", "I research options for my team", "I'm part of the decision team", "I have budget authority"
+- Timeline: "urgent/ASAP", "within 3 months", "3-6 months", "6-12 months", "next year", "no specific timeline"
+- Budget Status: "budget approved", "awaiting approval", "in planning", "researching costs", "just exploring"
+
+As you approach the end of Round 1, mention that the technical validation (Round 2) works best with input from their technical team members - IT managers, system administrators, or technical leads who understand their current infrastructure.
+
+End only when you have deep understanding with: "Thanks! I'd like to dive deeper into the technical side in our next conversation. For our technical discussion, you might want to include your IT manager or technical lead who knows your current systems best."
 
 Start with: "Let's explore your AI project needs. What specific business challenge is driving your interest in AI solutions?"`;
+    this.ROUND_2_SYSTEM_PROMPT = `You are conducting Round 2 of AI project qualification: TECHNICAL DEPTH VALIDATION. 
 
-const ROUND_2_SYSTEM_PROMPT = `You are conducting Round 2 of AI project qualification: TECHNICAL DEPTH VALIDATION.
+CRITICAL: You already know their problem, industry, budget, and timeline from Round 1. Reference this context naturally.
 
-Goals:
-- Assess technical infrastructure and team readiness
-- Understand integration requirements and constraints
-- Validate team capability and involvement
-- Probe implementation experience
+Goals: Assess technical infrastructure and team readiness. Understand integration requirements and constraints. Validate team capability and involvement.
 
-Guidelines:
-- Reference their Round 1 responses to show continuity
-- Ask about current data infrastructure, team structure
-- Probe for technical decision makers and their involvement
-- Ask about past AI/automation projects and outcomes
-- Focus on the HOW - technical feasibility and team readiness
-- End with: "Great insights! Let's discuss the business side - timeline and decision process - in our final conversation."
+Guidelines: 
+- Ask ONE focused question at a time - NEVER ask multiple questions in a single response
+- Build on what they told you in Round 1 - reference their specific problem and context
+- Focus on the HOW - technical feasibility and team readiness  
+- Build naturally on their previous answer before moving to new topics
+- Probe deeper into their specific technical situation
+- Guide them with examples when they give vague answers
 
-Start by referencing their previous input and diving into technical aspects.`;
+Example answers to guide them toward:
+- Current Tools: "Salesforce and Excel", "custom database", "Google Workspace", "mostly manual processes"
+- Tech Capability: "we use Python and AWS", "mostly Excel and basic tools", "we have some API experience", "very basic tech skills"
+- Implementation Capacity: "our IT team can handle it", "we'd need outside help", "we have dedicated developers", "no technical team"
+- Solution Type: "integrate with our current tools", "need a complete new system", "pilot project first"
 
-const ROUND_3_SYSTEM_PROMPT = `You are conducting Round 3 of AI project qualification: AUTHORITY AND INVESTMENT CONFIRMATION.
+Question Flow for Round 2:
+1. Current tools/systems they use for their specific problem
+2. Team's technical capabilities and experience
+3. Implementation capacity and support needs
+4. Integration requirements and constraints
 
-Goals:
-- Confirm decision-making authority and approval process
-- Validate budget range and investment readiness
-- Assess vendor selection maturity and timeline
-- Establish next steps and realistic expectations
+As you approach the end of Round 2, mention that the final conversation (Round 3) focuses on decision-making authority and budget approval, so it works best with whoever has purchasing authority or makes vendor selection decisions.
 
-Guidelines:
+End only when you have technical clarity with: "Great insights! Let's discuss the business side - timeline and decision process - in our final conversation. For that discussion, you might want to include whoever has budget authority or makes vendor decisions at your company."
+
+Remember: Reference their Round 1 context and ask only ONE question at a time.`;
+    this.ROUND_3_SYSTEM_PROMPT = `You are conducting Round 3 of AI project qualification: AUTHORITY AND INVESTMENT CONFIRMATION. 
+
+CRITICAL: You know their problem, technical situation, budget, and timeline from Rounds 1 & 2. Reference this context naturally.
+
+Goals: Confirm decision-making authority and approval process. Validate budget range and investment readiness. Assess vendor selection maturity and timeline.
+
+Guidelines: 
+- Ask ONE focused question at a time - NEVER ask multiple questions in a single response
 - Reference insights from previous rounds to show comprehensive understanding
-- Ask about budget approval process, timeline, decision makers
-- Probe for vendor selection criteria and evaluation process
-- Discuss implementation timeline and readiness
 - Focus on the WHO and WHEN - authority and timeline validation
-- End with clear next steps and expectations
+- Build naturally on their previous answer before moving to new topics
+- Probe deeper into their specific decision-making process
+- Guide them with examples when they give vague answers
 
-Start by acknowledging their previous responses and focusing on business/authority aspects.`;
+Example answers to guide them toward:
+- Decision Process: "I make the final call", "need board approval", "team decision", "I choose the vendor", "need CEO approval"
+- Budget Authority: "budget is approved", "waiting for approval", "still planning", "I control the budget"
+- Timeline Drivers: "need to start in 3 months", "by end of Q2", "flexible on timing", "ASAP", "when we find right vendor"
+- Vendor Selection: "I research and choose", "committee decision", "need multiple quotes", "prefer referrals"
 
-// Enhanced scoring prompts for comprehensive assessment
-const ENHANCED_AI_READINESS_PROMPT = `Score this multi-round prospect conversation for comprehensive AI readiness assessment.
+Question Flow for Round 3:
+1. Decision-making authority and approval process
+2. Budget confirmation and approval status  
+3. Timeline drivers and constraints
+4. Vendor selection criteria and process
 
-Full Conversation History:
-{full_conversation}
+End with clear next steps when you have full authority clarity.
 
-Round Information:
-- Rounds Completed: {rounds_completed}
-- Round Quality: {round_quality}
-- Conversation Progression: {progression_quality}
+Remember: Reference their specific context from previous rounds and ask only ONE question at a time.
 
-Enhanced Scoring Rubric (0-100 total):
+Note: If during the conversation it becomes clear that someone else should be involved (like a CEO for budget approval or CTO for technical decisions), gently suggest they might want to include that person in the process.`;
+  }
 
-1. **Project Clarity & Business Case (0-20)**
-   - Specific problem identification with measurable impact
-   - Clear understanding of current state and desired outcomes
-   - Realistic success metrics defined
-
-2. **Technical Infrastructure Readiness (0-20)**
-   - Data infrastructure and accessibility
-   - Technical team capability and involvement
-   - Integration requirements understanding
-
-3. **Timeline & Urgency Validation (0-20)**
-   - Business drivers creating timeline pressure
-   - Realistic project timeline expectations
-   - Executive mandate or competitive pressure
-
-4. **Budget & Investment Reality (0-20)**
-   - Budget range alignment with project scope
-   - Authority and approval process clarity
-   - Investment seriousness indicators
-
-5. **Implementation Readiness (0-20)**
-   - Team involvement and change management
-   - Vendor selection process maturity
-   - Risk awareness and mitigation planning
-
-Enhanced Categories:
-- 85-100: HOT - Ready for immediate vendor introduction
-- 70-84: WARM - Strong candidate, minor qualification needed
-- 55-69: COOL - 3-6 months development needed
-- 40-54: NURTURE - 6-12 months education required
-- 0-39: COLD - 12+ months away, minimal vendor time
-
-Return detailed JSON with scores, category, evidence, and specific recommendations.`;
-
-class OpenAIService {
   async startConversation(companyName = '') {
     const greeting = companyName 
       ? `Hi ${companyName}! I'm here to understand your AI project needs. What specific business problem are you trying to solve with AI?`
       : `Hi! I'm here to understand your AI project needs. What specific business problem are you trying to solve with AI?`;
 
     return [
-      { role: 'system', content: INTAKE_SYSTEM_PROMPT },
+      { role: 'system', content: this.INTAKE_SYSTEM_PROMPT },
       { role: 'assistant', content: greeting }
     ];
-  }
-
-  async generateFollowUp(userResponse, conversationHistory = []) {
-    try {
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4',
-        messages: [
-          { role: 'system', content: FOLLOW_UP_PROMPT.replace('{user_response}', userResponse) },
-          ...conversationHistory.slice(-6) // Last 6 messages for context
-        ],
-        max_tokens: 200,
-        temperature: 0.7
-      });
-
-      return response.choices[0].message.content;
-    } catch (error) {
-      console.error('OpenAI follow-up error:', error);
-      throw new Error('Failed to generate follow-up question');
-    }
   }
 
   async continueConversation(messages, userMessage) {
@@ -231,7 +143,7 @@ class OpenAIService {
         { role: 'user', content: userMessage }
       ];
 
-      const response = await openai.chat.completions.create({
+      const response = await this.openai.chat.completions.create({
         model: 'gpt-4',
         messages: conversationMessages,
         max_tokens: 300,
@@ -250,407 +162,170 @@ class OpenAIService {
     }
   }
 
-  async scoreReadiness(conversationMessages) {
-    try {
-      const conversationText = conversationMessages
-        .filter(msg => msg.role !== 'system')
-        .map(msg => `${msg.role}: ${msg.content}`)
-        .join('\n');
-
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4',
-        messages: [
-          {
-            role: 'system',
-            content: AI_READINESS_PROMPT.replace('{full_conversation}', conversationText)
-          }
-        ],
-        max_tokens: 1000,
-        temperature: 0.3 // Lower temperature for consistent scoring
-      });
-
-      // Parse the JSON response
-      const scoreData = JSON.parse(response.choices[0].message.content);
-      
-      return {
-        budget_score: scoreData.budget_score || 0,
-        use_case_score: scoreData.use_case_score || 0,
-        timeline_score: scoreData.timeline_score || 0,
-        technical_score: scoreData.technical_score || 0,
-        total_score: scoreData.total_score || 0,
-        category: scoreData.category || 'COLD',
-        evidence: scoreData.evidence || [],
-        summary: scoreData.summary || ''
-      };
-    } catch (error) {
-      console.error('OpenAI scoring error:', error);
-      // Fallback scoring if AI fails
-      return {
-        budget_score: 0,
-        use_case_score: 0,
-        timeline_score: 0,
-        technical_score: 0,
-        total_score: 0,
-        category: 'COLD',
-        evidence: ['AI scoring failed'],
-        summary: 'Unable to score - manual review required'
-      };
-    }
-  }
-
-  async matchVendors(prospectSummary, vendors) {
-    try {
-      const vendorListJson = JSON.stringify(vendors.map(v => ({
-        id: v.id,
-        company_name: v.company_name,
-        capabilities: v.capabilities,
-        industries: v.industries,
-        typical_deal_size: v.typical_deal_size,
-        description: v.description
-      })));
-
-      const prompt = VENDOR_MATCH_PROMPT
-        .replace('{prospect_summary}', prospectSummary.description || '')
-        .replace('{industry}', prospectSummary.industry || 'Not specified')
-        .replace('{use_case}', prospectSummary.use_case || 'Not specified')
-        .replace('{budget}', prospectSummary.budget || 'Not specified')
-        .replace('{timeline}', prospectSummary.timeline || 'Not specified')
-        .replace('{requirements}', prospectSummary.requirements || 'Not specified')
-        .replace('{vendor_list_json}', vendorListJson);
-
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4',
-        messages: [{ role: 'system', content: prompt }],
-        max_tokens: 2000,
-        temperature: 0.3
-      });
-
-      // Parse the response to extract match scores
-      const matchResults = JSON.parse(response.choices[0].message.content);
-      return matchResults;
-    } catch (error) {
-      console.error('OpenAI vendor matching error:', error);
-      // Fallback to simple matching
-      return vendors.slice(0, 3).map(vendor => ({
-        vendor_id: vendor.id,
-        match_score: 50,
-        reasons: ['Fallback match - AI matching failed'],
-        concerns: ['Requires manual review'],
-        talking_points: ['General AI capabilities discussion']
-      }));
-    }
-  }
-
-  async extractProjectDetails(conversationMessages) {
-    try {
-      const conversationText = conversationMessages
-        .filter(msg => msg.role !== 'system')
-        .map(msg => `${msg.role}: ${msg.content}`)
-        .join('\n');
-
-      const extractionPrompt = `Extract key project details from this conversation:
-
-${conversationText}
-
-Return JSON with:
-{
-  "industry": "extracted industry",
-  "use_case": "specific AI use case",
-  "budget_range": "budget mentioned or inferred",
-  "timeline": "project timeline",
-  "technical_requirements": "technical needs mentioned",
-  "decision_makers": "who's involved in decision making",
-  "pain_points": ["list", "of", "pain", "points"],
-  "success_metrics": "how they'll measure success"
-}`;
-
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4',
-        messages: [{ role: 'system', content: extractionPrompt }],
-        max_tokens: 800,
-        temperature: 0.3
-      });
-
-      return JSON.parse(response.choices[0].message.content);
-    } catch (error) {
-      console.error('OpenAI extraction error:', error);
-      return {};
-    }
-  }
-
-  // Enhanced Multi-Round Conversation Methods
   async startRoundConversation(roundNumber, previousContext = null, companyName = '') {
     const systemPrompts = {
-      1: ROUND_1_SYSTEM_PROMPT,
-      2: ROUND_2_SYSTEM_PROMPT,
-      3: ROUND_3_SYSTEM_PROMPT
+      1: this.ROUND_1_SYSTEM_PROMPT,
+      2: this.ROUND_2_SYSTEM_PROMPT,
+      3: this.ROUND_3_SYSTEM_PROMPT
     };
 
-    const systemPrompt = systemPrompts[roundNumber] || ROUND_1_SYSTEM_PROMPT;
+    const systemPrompt = systemPrompts[roundNumber] || this.ROUND_1_SYSTEM_PROMPT;
     
-    try {
-      let contextualPrompt = systemPrompt;
-      let greeting = '';
+    let greeting = '';
       
-      if (roundNumber === 1) {
-        greeting = companyName 
-          ? `Hi ${companyName}! Let's explore your AI project needs. What specific business challenge is driving your interest in AI solutions?`
-          : `Hi! Let's explore your AI project needs. What specific business challenge is driving your interest in AI solutions?`;
-      } else if (previousContext) {
-        // Generate contextual greeting referencing previous rounds
-        const contextPrompt = `Based on previous conversation context, generate a personalized greeting for Round ${roundNumber}:
+    if (roundNumber === 1) {
+      greeting = companyName 
+        ? `Hi ${companyName}! Let's explore your AI project needs. What specific business challenge is driving your interest in AI solutions?`
+        : `Hi! Let's explore your AI project needs. What specific business challenge is driving your interest in AI solutions?`;
+    } else if (previousContext && previousContext.data) {
+      // Generate contextual greeting based on previous round data
+      greeting = await this.generateContextualGreeting(roundNumber, previousContext);
+    } else {
+      greeting = `Thanks for the information. Let's move to the next round.`;
+    }
 
-Previous Context: ${JSON.stringify(previousContext)}
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'assistant', content: greeting }
+    ];
 
-Generate a warm, conversational opening that:
-1. References specific details from previous rounds
-2. Smoothly transitions to this round's focus
-3. Makes the prospect feel heard and understood
-4. Sets clear expectations for this conversation
+    return {
+        messages: messages,
+        response: greeting
+    }
+  }
 
-Keep it under 100 words and maintain a professional but friendly tone.`;
-
-        const contextResponse = await openai.chat.completions.create({
-          model: 'gpt-4',
-          messages: [{ role: 'system', content: contextPrompt }],
-          max_tokens: 200,
-          temperature: 0.7
-        });
-
-        greeting = contextResponse.choices[0].message.content;
+  async generateContextualGreeting(roundNumber, previousContext) {
+    try {
+      const { summary, data } = previousContext;
+      const structured = data.structured || {};
+      
+      // Create contextual greeting based on previous round data
+      let contextParts = [];
+      
+      if (structured.problemType) {
+        contextParts.push(`your ${structured.problemType.replace('_', ' ')} needs`);
+      }
+      
+      if (structured.industry && structured.teamSize) {
+        contextParts.push(`for your ${structured.teamSize} ${structured.industry} team`);
+      } else if (structured.industry) {
+        contextParts.push(`in the ${structured.industry} industry`);
+      } else if (structured.teamSize) {
+        contextParts.push(`for your ${structured.teamSize} team`);
+      }
+      
+      if (structured.budgetAmount && structured.businessUrgency) {
+        contextParts.push(`with your $${structured.budgetAmount} budget and ${structured.businessUrgency} timeline`);
+      } else if (structured.budgetAmount) {
+        contextParts.push(`with your $${structured.budgetAmount} budget`);
+      } else if (structured.businessUrgency) {
+        contextParts.push(`with your ${structured.businessUrgency} timeline`);
       }
 
-      return [
-        { role: 'system', content: contextualPrompt },
-        { role: 'assistant', content: greeting }
-      ];
-    } catch (error) {
-      console.error('Error starting round conversation:', error);
-      // Fallback to basic round start
-      return [
-        { role: 'system', content: systemPrompt },
-        { role: 'assistant', content: `Let's continue with Round ${roundNumber} of our conversation.` }
-      ];
-    }
-  }
-
-  async scoreEnhancedReadiness(conversationData, roundsCompleted = 1, progressionQuality = 'stable') {
-    try {
-      const fullConversationText = this.formatMultiRoundConversation(conversationData);
+      const contextString = contextParts.length > 0 ? contextParts.join(' ') : 'your AI project';
       
-      const prompt = ENHANCED_AI_READINESS_PROMPT
-        .replace('{full_conversation}', fullConversationText)
-        .replace('{rounds_completed}', roundsCompleted.toString())
-        .replace('{round_quality}', progressionQuality)
-        .replace('{progression_quality}', progressionQuality);
-
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4',
-        messages: [{ role: 'system', content: prompt }],
-        max_tokens: 1200,
-        temperature: 0.3
-      });
-
-      const scoreData = JSON.parse(response.choices[0].message.content);
+      if (roundNumber === 2) {
+        return `Perfect! Now that I understand ${contextString}, let's dive into the technical side. What tools and systems does your team currently use for this process?`;
+      } else if (roundNumber === 3) {
+        return `Excellent! Based on our discussion about ${contextString}, let's talk about the decision-making and implementation process. Who else would be involved in choosing and approving an AI solution like this?`;
+      }
       
-      // Enhanced scoring with more granular assessment
-      return {
-        project_clarity_score: scoreData.project_clarity_score || 0,
-        technical_readiness_score: scoreData.technical_readiness_score || 0,
-        timeline_urgency_score: scoreData.timeline_urgency_score || 0,
-        budget_reality_score: scoreData.budget_reality_score || 0,
-        implementation_readiness_score: scoreData.implementation_readiness_score || 0,
-        total_score: scoreData.total_score || 0,
-        category: scoreData.category || 'COLD',
-        evidence: scoreData.evidence || {},
-        recommendations: scoreData.recommendations || [],
-        confidence_level: scoreData.confidence_level || 'low',
-        round_progression_quality: progressionQuality,
-        rounds_completed: roundsCompleted
-      };
-    } catch (error) {
-      console.error('Enhanced scoring error:', error);
-      // Fallback to basic scoring
-      return this.scoreReadiness(conversationData.messages || []);
-    }
-  }
-
-  async analyzeBehavioralPatterns(messageData, responseTime, conversationId) {
-    try {
-      const behavioralPrompt = `Analyze this message for behavioral authenticity and engagement quality:
-
-Message: "${messageData.content}"
-Response Time: ${responseTime} seconds
-Context: Business AI project qualification conversation
-
-Analyze for:
-1. **Response Timing Appropriateness** (0-100)
-   - Too fast for complex questions (red flag)
-   - Reasonable thinking time for question complexity
-   - Consistent with previous response patterns
-
-2. **Content Authenticity** (0-100)
-   - Specific details vs generic responses
-   - Personal/company-specific examples
-   - Consistent with previous statements
-
-3. **Engagement Quality** (0-100)
-   - Thoughtful, detailed responses
-   - Questions showing genuine interest
-   - Building on previous conversation
-
-4. **Communication Sophistication** (0-100)
-   - Business-appropriate language
-   - Technical understanding appropriate to role
-   - Professional communication style
-
-Return JSON with:
-{
-  "timing_score": 0-100,
-  "authenticity_score": 0-100,
-  "engagement_score": 0-100,
-  "sophistication_score": 0-100,
-  "overall_behavioral_score": 0-100,
-  "red_flags": ["any concerning patterns"],
-  "positive_signals": ["authentic engagement indicators"],
-  "analysis_notes": "brief explanation of assessment"
-}`;
-
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4',
-        messages: [{ role: 'system', content: behavioralPrompt }],
-        max_tokens: 600,
-        temperature: 0.3
-      });
-
-      const behavioralData = JSON.parse(response.choices[0].message.content);
+      return `Thanks for sharing about ${contextString}. Let's continue to the next round.`;
       
-      // Behavioral analysis storage handled via API routes to avoid circular dependencies
-
-      return behavioralData;
     } catch (error) {
-      console.error('Behavioral analysis error:', error);
-      return {
-        timing_score: 50,
-        authenticity_score: 50,
-        engagement_score: 50,
-        sophistication_score: 50,
-        overall_behavioral_score: 50,
-        red_flags: ['analysis_error'],
-        positive_signals: [],
-        analysis_notes: 'Unable to analyze - manual review recommended'
-      };
+      console.error('Error generating contextual greeting:', error);
+      return `Thanks for the information from our previous conversation. Let's move forward.`;
     }
   }
 
-  async generateRoundSummary(conversationMessages, roundNumber) {
-    try {
-      const conversationText = conversationMessages
-        .filter(msg => msg.role !== 'system')
-        .map(msg => `${msg.role}: ${msg.content}`)
-        .join('\n');
-
-      const summaryPrompt = `Summarize Round ${roundNumber} of this AI project qualification conversation:
-
-${conversationText}
-
-Generate a comprehensive summary for Round ${roundNumber}:
-{
-  "round_focus": "What this round focused on",
-  "key_insights": ["main insights discovered"],
-  "questions_answered": ["questions that got clear answers"],
-  "gaps_identified": ["areas needing more information"],
-  "readiness_indicators": ["positive signals for AI readiness"],
-  "concerns_raised": ["potential red flags or concerns"],
-  "next_round_recommendations": ["what to focus on next"],
-  "completion_quality": "excellent|good|adequate|poor"
-}`;
-
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4',
-        messages: [{ role: 'system', content: summaryPrompt }],
-        max_tokens: 800,
-        temperature: 0.3
-      });
-
-      return JSON.parse(response.choices[0].message.content);
-    } catch (error) {
-      console.error('Round summary error:', error);
-      return {
-        round_focus: `Round ${roundNumber} conversation`,
-        key_insights: [],
-        completion_quality: 'adequate'
-      };
-    }
-  }
-
-  // Helper method to format multi-round conversations
-  formatMultiRoundConversation(conversationData) {
-    if (conversationData.rounds && Array.isArray(conversationData.rounds)) {
-      // Multi-round format
-      return conversationData.rounds.map((round, index) => {
-        const roundMessages = round.messages || [];
-        const roundText = roundMessages
-          .filter(msg => msg.role !== 'system')
-          .map(msg => `${msg.role}: ${msg.content}`)
-          .join('\n');
-        return `=== ROUND ${index + 1} ===\n${roundText}`;
-      }).join('\n\n');
-    } else if (conversationData.messages) {
-      // Single conversation format
-      return conversationData.messages
-        .filter(msg => msg.role !== 'system')
-        .map(msg => `${msg.role}: ${msg.content}`)
-        .join('\n');
-    }
-    return JSON.stringify(conversationData);
-  }
-
-  // Method to check if conversation is ready for next round
   async assessRoundCompleteness(conversationMessages, currentRound) {
+    // This is a mock implementation. In a real scenario, this would involve an LLM call.
+    if (conversationMessages.length >= 4) {
+        return { is_complete: true, ready_for_next_round: true };
+    }
+    return { is_complete: false, ready_for_next_round: false };
+  }
+
+  async extractAndRespond(messages, userMessage) {
+    const conversationMessages = [
+      ...messages,
+      { role: 'user', content: userMessage }
+    ];
+
+    const response = await this.openai.chat.completions.create({
+      model: 'gpt-4-turbo',
+      messages: conversationMessages,
+      response_format: { type: "json_object" },
+      max_tokens: 1000,
+      temperature: 0.7,
+    });
+
+    const assistantResponse = response.choices[0].message.content;
+    return JSON.parse(assistantResponse);
+  }
+
+  async extractInfo(conversationHistory) {
+    const extractionPrompt = `
+      Given the following conversation history:
+      ${JSON.stringify(conversationHistory, null, 2)}
+
+      Extract the following information into a JSON object. Only include fields where you are confident.
+
+      {
+        "structured": {
+          "problemType": "hiring_recruitment|customer_support|data_analysis|financial_management|sales_marketing|time_tracking|inventory_management|content_creation|document_processing|quality_assurance|predictive_analytics|process_automation|compliance_reporting|fraud_detection|personalization|other",
+          "industry": "healthcare|finance|construction|retail|manufacturing|technology|education|government|real_estate|insurance|consulting|media_entertainment|transportation|energy|agriculture|legal|nonprofit|other",
+          "jobFunction": "individual_contributor|manager|director|vp|c_level|founder|consultant",
+          "decisionRole": "researcher|influencer|team_member|chief_decision_maker|budget_holder",
+          "solutionType": "end_to_end|add_to_stack|pilot_project|proof_of_concept",
+          "implementationCapacity": "have_team|need_help|hybrid_approach",
+          "businessUrgency": "urgent_asap|under_3_months|3_to_6_months|6_to_12_months|1_year_plus|no_timeline",
+          "budgetStatus": "just_exploring|researching_costs|in_planning|awaiting_approval|approved|unlimited",
+          "conversationNeeds": "intro_concepts|technical_deep_dive|sales_conversation|strategy_consultation|vendor_comparison|implementation_planning",
+          "teamSize": "number as string or null",
+          "techCapability": "basic|intermediate|advanced"
+        },
+        "context": {
+          "challengeDescription": "Brief description of their specific challenge in their own words",
+          "industryContext": "Industry-specific considerations they mentioned",
+          "authorityContext": "Decision-making authority and stakeholder dynamics",
+          "urgencyReasoning": "Why they need to solve this by their timeline",
+          "budgetContext": "Budget situation and constraints in their words",
+          "solutionPreferences": "Previous tools tried or preferences mentioned",
+          "implementationConcerns": "Concerns about implementation or adoption",
+          "successCriteria": "What success looks like to them",
+          "complianceDetails": "Specific compliance or regulatory requirements",
+          "stakeholderDynamics": "Who else is involved and how decisions get made"
+        },
+        "artifacts": {
+          "companyWebsite": "URL or null",
+          "linkedInProfile": "URL or null",
+          "keyQuotes": ["exact quotes that capture pain points or needs"],
+          "currentToolStack": ["tools they currently use"],
+          "painPointDetails": ["specific examples of problems they face"]
+        }
+      }
+    `;
+
     try {
-      const conversationText = conversationMessages
-        .filter(msg => msg.role !== 'system')
-        .map(msg => `${msg.role}: ${msg.content}`)
-        .join('\n');
-
-      const completenessPrompt = `Assess if Round ${currentRound} conversation is complete and ready for the next round:
-
-${conversationText}
-
-Round ${currentRound} objectives:
-${currentRound === 1 ? '- Identify specific business problem\n- Understand current pain points\n- Assess initial urgency' :
-  currentRound === 2 ? '- Assess technical infrastructure\n- Validate team capability\n- Understand integration needs' :
-  '- Confirm decision authority\n- Validate budget process\n- Establish timeline reality'}
-
-Return JSON:
-{
-  "is_complete": boolean,
-  "completion_score": 0-100,
-  "objectives_met": ["which objectives were achieved"],
-  "missing_information": ["what still needs to be covered"],
-  "ready_for_next_round": boolean,
-  "recommended_follow_up": "what to ask next or if ready to advance"
-}`;
-
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4',
-        messages: [{ role: 'system', content: completenessPrompt }],
-        max_tokens: 600,
-        temperature: 0.3
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4-turbo',
+        messages: [
+          { role: 'system', content: 'You are an expert at extracting structured information from conversations.' },
+          { role: 'user', content: extractionPrompt }
+        ],
+        response_format: { type: "json_object" },
       });
 
-      return JSON.parse(response.choices[0].message.content);
+      const extractedData = JSON.parse(response.choices[0].message.content);
+      return extractedData;
     } catch (error) {
-      console.error('Round completeness assessment error:', error);
-      return {
-        is_complete: false,
-        completion_score: 50,
-        ready_for_next_round: false,
-        recommended_follow_up: 'Continue current round conversation'
-      };
+      console.error('OpenAI extraction error:', error);
+      throw new Error('Failed to extract information');
     }
   }
 }
+
 
 module.exports = new OpenAIService();

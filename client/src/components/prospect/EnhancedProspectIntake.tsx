@@ -36,17 +36,50 @@ interface ValidationStatus {
 }
 
 interface StructuredData {
-  problemType: string;
-  industry: string;
-  jobFunction: string;
-  decisionRole: string;
-  solutionType: string;
-  implementationCapacity: string;
-  businessUrgency: string;
-  budgetStatus: string;
-  conversationNeeds: string;
-  teamSize: string;
-  techCapability: string;
+  // Problem Type
+  problemType: string;                    // Raw: "hiring automation with AI"
+  problemTypeCategory: string;            // Normalized: "automation"
+  
+  // Industry  
+  industry: string;                       // Raw: "fintech"
+  industryCategory: string;               // Normalized: "technology"
+  
+  // Job Function
+  jobFunction: string;                    // Raw: "VP of Engineering"  
+  jobFunctionCategory: string;            // Normalized: "vp"
+  
+  // Decision Role
+  decisionRole: string;                   // Raw: "I make the final call but need buy-in"
+  decisionRoleCategory: string;           // Normalized: "chief_decision_maker"
+  
+  // Solution Type
+  solutionType: string;                   // Raw: "integrate with our current stack"
+  solutionTypeCategory: string;           // Normalized: "add_to_stack"
+  
+  // Implementation Capacity
+  implementationCapacity: string;         // Raw: "our IT team is swamped"
+  implementationCapacityCategory: string; // Normalized: "need_help"
+  
+  // Business Urgency
+  businessUrgency: string;                // Raw: "we need this by Q2"
+  businessUrgencyCategory: string;        // Normalized: "under_3_months"
+  
+  // Budget Status  
+  budgetStatus: string;                   // Raw: "we have $50K approved"
+  budgetStatusCategory: string;           // Normalized: "approved"
+  budgetAmount: string;                   // Extracted: "$50K"
+  
+  // Conversation Needs
+  conversationNeeds: string;              // Raw: "technical deep dive with examples"
+  conversationNeedsCategory: string;      // Normalized: "technical_deep_dive"
+  
+  // Team Size
+  teamSize: string;                       // Raw: "about 25 people in engineering"
+  teamSizeNumber: string;                 // Extracted: "25"
+  
+  // Tech Capability
+  techCapability: string;                 // Raw: "we know Python and AWS well"
+  techCapabilityCategory: string;         // Normalized: "advanced"
 }
 
 interface ContextData {
@@ -72,7 +105,7 @@ interface ArtifactsData {
 }
 
 const EnhancedProspectIntake: React.FC = () => {
-  const [currentStep, setCurrentStep] = useState<'landing' | 'form' | 'conversation' | 'transition' | 'complete'>('landing');
+  const [currentStep, setCurrentStep] = useState<'landing' | 'form' | 'conversation' | 'transition' | 'complete'>('conversation');
   const [currentRound, setCurrentRound] = useState<1 | 2 | 3>(1);
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentMessage, setCurrentMessage] = useState('');
@@ -113,172 +146,73 @@ const EnhancedProspectIntake: React.FC = () => {
     }
   }, [currentStep, currentRound]);
 
-  const startConversationRound = () => {
-    const welcomeMessages = {
-      1: `Hi ${formData.contactName}! Let's start by understanding your specific AI project needs. What business problem are you trying to solve with AI?`,
-      2: `Great progress! Now let's dive into the technical details. Tell me about your current technology infrastructure and team capabilities.`,
-      3: `Excellent! For our final conversation, let's discuss investment levels and decision-making process. This helps us match you with appropriate vendors.`
-    };
-
-    const aiMessage: Message = {
-      id: Date.now().toString(),
-      sender: 'ai',
-      content: welcomeMessages[currentRound],
-      timestamp: new Date()
-    };
-
-    setMessages([aiMessage]);
-    setProgress(currentRound === 1 ? 10 : currentRound === 2 ? 40 : 70);
-  };
-
-  const extractInformationFromMessage = async (userMessage: string) => {
-    // Use AI to intelligently extract structured information from user response
+  const startConversationRound = async () => {
+    setIsTyping(true);
     try {
-      const extractionPrompt = `
-Given this user response: "${userMessage}"
-And this conversation context: Currently collecting ${currentRound === 1 ? 'problem & context' : currentRound === 2 ? 'technical details' : 'business information'}
+      // Use round-specific endpoint for multi-round conversations
+      const endpoint = currentRound === 1 ? 
+        `${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/ai/v1/process` :
+        `${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/ai/v1/start-round`;
 
-Extract both structured data and contextual insights. Return a JSON object with this format:
+      const requestBody = currentRound === 1 ? 
+        {
+          message: "Let's begin",
+          context: { lastQuestion: null },
+        } : 
+        {
+          roundNumber: currentRound,
+          previousData: collectedInfo,
+          conversationSummary: collectedInfo.artifacts.conversationSummary || ''
+        };
 
-{
-  "structured": {
-    "problemType": "time_tracking|customer_support|financial_management|data_analysis|automation|other",
-    "industry": "healthcare|finance|construction|retail|manufacturing|technology|education|government|other", 
-    "jobFunction": "individual_contributor|manager|director|vp|c_level",
-    "decisionRole": "researcher|team_member|chief_decision_maker",
-    "solutionType": "end_to_end|add_to_stack",
-    "implementationCapacity": "have_team|need_help",
-    "businessUrgency": "under_3_months|3_to_6_months|1_year_plus",
-    "budgetStatus": "just_exploring|in_planning|awaiting_approval|approved",
-    "conversationNeeds": "intro_concepts|technical_deep_dive|sales_conversation|strategy_consultation",
-    "teamSize": "number as string or null",
-    "techCapability": "basic|intermediate|advanced"
-  },
-  "context": {
-    "challengeDescription": "Brief description of their specific challenge in their own words",
-    "industryContext": "Industry-specific considerations they mentioned",
-    "authorityContext": "Decision-making authority and stakeholder dynamics", 
-    "urgencyReasoning": "Why they need to solve this by their timeline",
-    "budgetContext": "Budget situation and constraints in their words",
-    "solutionPreferences": "Previous tools tried or preferences mentioned",
-    "implementationConcerns": "Concerns about implementation or adoption",
-    "successCriteria": "What success looks like to them",
-    "complianceDetails": "Specific compliance or regulatory requirements",
-    "stakeholderDynamics": "Who else is involved and how decisions get made"
-  },
-  "artifacts": {
-    "companyWebsite": "URL or null",
-    "linkedInProfile": "URL or null", 
-    "keyQuotes": ["exact quotes that capture pain points or needs"],
-    "currentToolStack": ["tools they currently use"],
-    "painPointDetails": ["specific examples of problems they face"]
-  }
-}
-
-Only include fields where you're confident about the value. Return empty object {} if nothing can be extracted.`;
-
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/ai/extract-info`, {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          prompt: extractionPrompt,
-          userMessage,
-          currentRound 
-        })
+        body: JSON.stringify(requestBody)
       });
-      
+
       if (response.ok) {
-        const extractedData = await response.json();
-        console.log('🤖 AI Extraction Result:', extractedData);
+        const result = await response.json();
+        const aiMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          sender: 'ai',
+          content: result.response,
+          timestamp: new Date()
+        };
+        setMessages([aiMessage]);
         
-        // Update state with extracted information
-        setCollectedInfo(prev => {
-          const updated = { 
-            structured: { ...prev.structured },
-            context: { ...prev.context },
-            artifacts: { ...prev.artifacts }
-          };
-          
-          // Update structured data
-          if (extractedData.structured) {
-            Object.keys(extractedData.structured).forEach(key => {
-              const typedKey = key as keyof StructuredData;
-              if (extractedData.structured[typedKey] && (!updated.structured[typedKey] || updated.structured[typedKey] === '')) {
-                updated.structured[typedKey] = extractedData.structured[typedKey];
-              }
-            });
-          }
-          
-          // Update contextual data
-          if (extractedData.context) {
-            Object.keys(extractedData.context).forEach(key => {
-              const typedKey = key as keyof ContextData;
-              if (extractedData.context[typedKey] && (!updated.context[typedKey] || updated.context[typedKey] === '')) {
-                updated.context[typedKey] = extractedData.context[typedKey];
-              }
-            });
-          }
-          
-          // Update artifacts
-          if (extractedData.artifacts) {
-            Object.keys(extractedData.artifacts).forEach(key => {
-              const typedKey = key as keyof ArtifactsData;
-              if (extractedData.artifacts[typedKey]) {
-                if (Array.isArray(extractedData.artifacts[typedKey])) {
-                  // Merge arrays (e.g., keyQuotes, painPointDetails)
-                  const currentValue = updated.artifacts[typedKey];
-                  const extractedValue = extractedData.artifacts[typedKey];
-                  if (Array.isArray(currentValue) && Array.isArray(extractedValue)) {
-                    (updated.artifacts[typedKey] as string[]) = [...currentValue, ...extractedValue];
-                  }
-                } else if (!updated.artifacts[typedKey] || updated.artifacts[typedKey] === '') {
-                  updated.artifacts[typedKey] = extractedData.artifacts[typedKey];
-                }
-              }
-            });
-          }
-          
-          console.log('📝 Updated collected info:', updated);
-          return updated;
+        // Initialize or update context and structured data
+        setCollectedInfo(prev => ({
+          ...prev,
+          context: result.context || prev.context,
+          structured: result.structured ? { ...prev.structured, ...result.structured } : prev.structured,
+        }));
+
+        console.log(`🎯 Round ${currentRound} started with context:`, {
+          previousData: currentRound > 1 ? collectedInfo : null,
+          response: result.response
         });
+      } else {
+        // Handle error
+        const aiMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          sender: 'ai',
+          content: "Sorry, I'm having trouble connecting. Please try again in a moment.",
+          timestamp: new Date()
+        };
+        setMessages([aiMessage]);
       }
     } catch (error) {
-      console.error('Information extraction failed:', error);
-      // Fallback to basic extraction for critical fields
-      extractBasicInformation(userMessage);
-    }
-  };
-
-  const extractBasicInformation = (userMessage: string) => {
-    const lowerMessage = userMessage.toLowerCase();
-    
-    // Only extract the most obvious patterns as fallback
-    const websiteMatch = userMessage.match(/(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,})/i);
-    if (websiteMatch && !collectedInfo.artifacts.companyWebsite) {
-      let website = websiteMatch[0];
-      if (!website.startsWith('http')) {
-        website = 'https://' + website;
-      }
-      setCollectedInfo(prev => ({ 
-        ...prev, 
-        artifacts: { ...prev.artifacts, companyWebsite: website }
-      }));
-    }
-    
-    const linkedInMatch = userMessage.match(/linkedin\.com\/in\/[a-zA-Z0-9-]+/i);
-    if (linkedInMatch && !collectedInfo.artifacts.linkedInProfile) {
-      setCollectedInfo(prev => ({ 
-        ...prev, 
-        artifacts: { ...prev.artifacts, linkedInProfile: `https://${linkedInMatch[0]}` }
-      }));
-    }
-    
-    const teamSizeMatch = userMessage.match(/(\d+)\s*(people|employees|users|team|staff)/i);
-    if (teamSizeMatch && !collectedInfo.structured.teamSize) {
-      setCollectedInfo(prev => ({ 
-        ...prev, 
-        structured: { ...prev.structured, teamSize: teamSizeMatch[1] }
-      }));
+      console.error('Error starting conversation:', error);
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        sender: 'ai',
+        content: "Sorry, I'm having trouble connecting. Please try again in a moment.",
+        timestamp: new Date()
+      };
+      setMessages([aiMessage]);
+    } finally {
+      setIsTyping(false);
     }
   };
 
@@ -293,27 +227,62 @@ Only include fields where you're confident about the value. Return empty object 
     };
 
     setMessages(prev => [...prev, userMessage]);
-    
-    // Extract information from user message using AI
-    await extractInformationFromMessage(currentMessage);
-    
     setCurrentMessage('');
     setIsTyping(true);
+    
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/ai/v1/process`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMessage.content,
+          context: collectedInfo.context,
+        })
+      });
 
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse = generateAIResponse(userMessage.content, messages.length);
+      if (response.ok) {
+        const result = await response.json();
+        const aiMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          sender: 'ai',
+          content: result.response,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, aiMessage]);
+        
+        // Update both context and structured data
+        setCollectedInfo(prev => ({
+          ...prev,
+          context: result.context || prev.context,
+          structured: result.structured ? { ...prev.structured, ...result.structured } : prev.structured,
+        }));
+        
+        console.log('📊 Updated collected info:', { 
+          structured: result.structured,
+          context: result.context 
+        });
+      } else {
+        // Handle error
+        const aiMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          sender: 'ai',
+          content: "Sorry, I'm having trouble connecting. Please try again in a moment.",
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, aiMessage]);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         sender: 'ai',
-        content: aiResponse,
+        content: "Sorry, I'm having trouble connecting. Please try again in a moment.",
         timestamp: new Date()
       };
-
       setMessages(prev => [...prev, aiMessage]);
+    } finally {
       setIsTyping(false);
-      setProgress(prev => Math.min(prev + 10, currentRound === 1 ? 35 : currentRound === 2 ? 65 : 95));
-    }, 1500);
+    }
   };
 
   // Information schema that vendors need
@@ -324,16 +293,28 @@ Only include fields where you're confident about the value. Return empty object 
   }>({
     structured: {
       problemType: '',
+      problemTypeCategory: '',
       industry: '',
+      industryCategory: '',
       jobFunction: '',
+      jobFunctionCategory: '',
       decisionRole: '',
+      decisionRoleCategory: '',
       solutionType: '',
+      solutionTypeCategory: '',
       implementationCapacity: '',
+      implementationCapacityCategory: '',
       businessUrgency: '',
+      businessUrgencyCategory: '',
       budgetStatus: '',
+      budgetStatusCategory: '',
+      budgetAmount: '',
       conversationNeeds: '',
+      conversationNeedsCategory: '',
       teamSize: '',
+      teamSizeNumber: '',
       techCapability: '',
+      techCapabilityCategory: ''
     },
     context: {
       challengeDescription: '',
@@ -357,127 +338,6 @@ Only include fields where you're confident about the value. Return empty object 
     }
   });
 
-  const generateAIResponse = (userMessage: string, messageCount: number): string => {
-    const lowerMessage = userMessage.toLowerCase();
-    
-    // Round 1: Problem & Context Discovery - Fill problem context
-    if (currentRound === 1) {
-      // Determine what info we still need for Round 1
-      const needsProblemType = !collectedInfo.structured.problemType || collectedInfo.structured.problemType === '';
-      const needsIndustry = !collectedInfo.structured.industry || collectedInfo.structured.industry === '';
-      const needsJobFunction = !collectedInfo.structured.jobFunction || collectedInfo.structured.jobFunction === '';
-      const needsDecisionRole = !collectedInfo.structured.decisionRole || collectedInfo.structured.decisionRole === '';
-      const needsSolutionType = !collectedInfo.structured.solutionType || collectedInfo.structured.solutionType === '';
-      const needsCompliance = !collectedInfo.context.complianceDetails || collectedInfo.context.complianceDetails === '';
-      const needsWebsite = !collectedInfo.artifacts.companyWebsite || collectedInfo.artifacts.companyWebsite === '';
-      
-      console.log('🔍 Round 1 needs check:', {
-        needsProblemType,
-        needsIndustry,
-        needsJobFunction,
-        needsDecisionRole,
-        needsSolutionType,
-        needsCompliance,
-        needsWebsite,
-        currentInfo: collectedInfo.structured
-      });
-      
-      if (needsProblemType) {
-        return "What is the challenge you're trying to solve?";
-      }
-      
-      if (needsIndustry) {
-        return "What industry are you in? This helps us find vendors with relevant experience.";
-      }
-      
-      if (needsJobFunction) {
-        return "What's your role? Individual contributor, manager, director, VP, or C-level?";
-      }
-      
-      if (needsDecisionRole) {
-        return "What's your role in this decision? Researching options, part of the decision-making team, or the chief decision maker?";
-      }
-      
-      if (needsSolutionType) {
-        return "What type of solution are you looking for? An end-to-end tool, or something to add to your existing tech stack?";
-      }
-      
-      if (needsCompliance) {
-        return "Any compliance requirements? HIPAA, government regulations, industry-specific standards, or none?";
-      }
-      
-      if (needsWebsite) {
-        return "What's your company website? This helps us understand your business better.";
-      }
-      
-      return "How are you handling this currently, and where does that process break down?";
-    }
-    
-    // Round 2: Technical & Implementation Context - Fill technical requirements
-    if (currentRound === 2) {
-      const needsTechStack = !collectedInfo.artifacts.currentToolStack?.length;
-      const needsTeamSize = !collectedInfo.structured.teamSize;
-      const needsImplementationCapacity = !collectedInfo.structured.implementationCapacity;
-      const needsTechCapability = !collectedInfo.structured.techCapability;
-      const needsLinkedIn = !collectedInfo.artifacts.linkedInProfile;
-      
-      if (needsTechStack) {
-        return "What software tools and systems does your team currently use?";
-      }
-      
-      if (needsTeamSize) {
-        return "How many people would be using or affected by this solution?";
-      }
-      
-      if (needsImplementationCapacity) {
-        return "For implementation, do you have the team in place to build this out, or do you need someone to do it for you?";
-      }
-      
-      if (needsTechCapability) {
-        return "What's your team's comfort with new technology? Need plug-and-play solutions, or can you handle some technical setup?";
-      }
-      
-      if (needsLinkedIn) {
-        return "Mind sharing your LinkedIn profile? Helps us find relevant case studies for your situation.";
-      }
-      
-      return "Any specific integration requirements or technical constraints I should know about?";
-    }
-    
-    // Round 3: Business Context - Fill business requirements  
-    if (currentRound === 3) {
-      const needsBusinessUrgency = !collectedInfo.structured.businessUrgency;
-      const needsBudgetStatus = !collectedInfo.structured.budgetStatus;
-      const needsBudgetContext = !collectedInfo.context.budgetContext;
-      const needsStakeholderDynamics = !collectedInfo.context.stakeholderDynamics;
-      const needsConversationNeeds = !collectedInfo.structured.conversationNeeds;
-      
-      if (needsBusinessUrgency) {
-        return "What's the business urgency to solve this problem - under 3 months, 3-6 months, or 1 year+?";
-      }
-      
-      if (needsBudgetStatus) {
-        return "Do you have budget to solve this problem - just exploring, in planning, awaiting approval, or approved?";
-      }
-      
-      if (needsBudgetContext) {
-        return "What budget range are you working with for this project?";
-      }
-      
-      if (needsStakeholderDynamics) {
-        return "Who else would be involved in evaluating and choosing a vendor?";
-      }
-      
-      if (needsConversationNeeds) {
-        return "At this stage, what do you need - intro to AI concepts, technical deep dive into a solution, sales conversation, or strategy consultation?";
-      }
-      
-      return "Perfect. I have what I need to match you with relevant vendors.";
-    }
-    
-    return "Could you tell me more about that?";
-  };
-
   const completeRound = () => {
     if (currentRound < 3) {
       setCurrentStep('transition');
@@ -486,10 +346,124 @@ Only include fields where you're confident about the value. Return empty object 
     }
   };
 
-  const startNextRound = () => {
-    setCurrentRound((prev) => (prev + 1) as 1 | 2 | 3);
-    setMessages([]);
-    setCurrentStep('conversation');
+  const getStakeholderGuidance = (roundNumber: number) => {
+    switch (roundNumber) {
+      case 2:
+        return {
+          title: "👥 Who Should Participate in Round 2?",
+          subtitle: "Technical Validation works best with your technical team",
+          recommended: [
+            "IT Manager or Technical Lead",
+            "Person who manages current systems", 
+            "End users who'll use the AI solution",
+            "You (for continuity from Round 1)"
+          ],
+          avoid: [
+            "Budget authority (too early for investment talk)",
+            "Senior executives (technical details may not be relevant)"
+          ],
+          tip: "This round focuses on 'how' - integration, technical feasibility, and implementation capacity."
+        };
+      case 3:
+        return {
+          title: "👥 Who Should Participate in Round 3?",
+          subtitle: "Authority & Investment requires decision-makers",
+          recommended: [
+            "Budget approval authority (CEO, CFO, Dept Head)",
+            "Final decision maker for vendor selection",
+            "You (for context from previous rounds)",
+            "Anyone involved in procurement process"
+          ],
+          avoid: [
+            "Technical implementers (decision made, implementation later)",
+            "End users (unless they have budget authority)"
+          ],
+          tip: "This round focuses on 'who and when' - authority, timeline, and vendor selection."
+        };
+      default:
+        return null;
+    }
+  };
+
+  const generateStakeholderEmail = (roundNumber: number, userName: string = "there") => {
+    const guidance = getStakeholderGuidance(roundNumber);
+    if (!guidance) return "";
+
+    return `Subject: Team Input Needed - AI Assessment Round ${roundNumber}
+
+Hi ${userName},
+
+I'm progressing through an AI vendor assessment and need your expertise for the next phase.
+
+**${guidance.title.replace("👥 ", "")}**
+
+${guidance.subtitle}
+
+**✅ Your participation would be valuable because:**
+${guidance.recommended.map(person => `• ${person}`).join('\n')}
+
+**⏰ Time Commitment:** 15-20 minutes for a focused conversation
+
+**💡 What to expect:** ${guidance.tip}
+
+This assessment helps match us with AI vendors who understand our specific technical situation and constraints, saving time in the vendor selection process.
+
+Would you be available for a brief discussion? I'll send you the conversation link once you confirm.
+
+Thanks!
+
+---
+Generated via Yenta AI Assessment Platform`;
+  };
+
+  const startNextRound = async () => {
+    const nextRoundNumber = (currentRound + 1) as 1 | 2 | 3;
+    
+    try {
+      // Generate conversation summary for the next round
+      const summaryResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/ai/v1/summary`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationHistory: messages,
+          collectedData: collectedInfo,
+          currentRound: currentRound
+        })
+      });
+
+      let conversationSummary = '';
+      if (summaryResponse.ok) {
+        const summaryResult = await summaryResponse.json();
+        conversationSummary = summaryResult.summary;
+        
+        // Update artifacts with the summary
+        setCollectedInfo(prev => ({
+          ...prev,
+          artifacts: {
+            ...prev.artifacts,
+            conversationSummary: conversationSummary
+          }
+        }));
+      }
+
+      // Start the next round with accumulated context
+      setCurrentRound(nextRoundNumber);
+      setMessages([]);
+      setCurrentStep('conversation');
+      
+      console.log(`🔄 Starting Round ${nextRoundNumber} with accumulated data:`, {
+        structured: collectedInfo.structured,
+        context: collectedInfo.context,
+        conversationSummary: conversationSummary
+      });
+      
+    } catch (error) {
+      console.error('Error transitioning to next round:', error);
+      // Fall back to simple transition
+      setCurrentRound(nextRoundNumber);
+      setMessages([]);
+      setCurrentStep('conversation');
+    }
   };
 
   const performBackgroundValidation = async () => {
@@ -994,11 +968,81 @@ Only include fields where you're confident about the value. Return empty object 
                 </ul>
               </div>
 
+              {(() => {
+                const guidance = getStakeholderGuidance(nextRound.number);
+                if (!guidance) return null;
+                
+                return (
+                  <div className="stakeholder-guidance">
+                    <h4>{guidance.title}</h4>
+                    <p style={{ fontSize: '14px', color: '#e2e8f0', marginBottom: '16px' }}>
+                      {guidance.subtitle}
+                    </p>
+                    
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                      <div>
+                        <strong style={{ color: '#22c55e', fontSize: '14px' }}>✅ Recommended:</strong>
+                        <ul style={{ margin: '8px 0', paddingLeft: '16px', fontSize: '13px' }}>
+                          {guidance.recommended.map((person, index) => (
+                            <li key={index} style={{ marginBottom: '4px', color: '#cbd5e1' }}>{person}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      
+                      <div>
+                        <strong style={{ color: '#ef4444', fontSize: '14px' }}>❌ Avoid Including:</strong>
+                        <ul style={{ margin: '8px 0', paddingLeft: '16px', fontSize: '13px' }}>
+                          {guidance.avoid.map((person, index) => (
+                            <li key={index} style={{ marginBottom: '4px', color: '#cbd5e1' }}>{person}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                    
+                    <div style={{ 
+                      background: 'rgba(59, 130, 246, 0.1)', 
+                      border: '1px solid rgba(59, 130, 246, 0.3)',
+                      borderRadius: '6px',
+                      padding: '12px',
+                      fontSize: '13px',
+                      color: '#93c5fd'
+                    }}>
+                      💡 <strong>Tip:</strong> {guidance.tip}
+                    </div>
+                    
+                    <button 
+                      onClick={() => {
+                        const emailText = generateStakeholderEmail(nextRound.number, formData.contactName || "there");
+                        navigator.clipboard.writeText(emailText);
+                        alert("📧 Email template copied to clipboard! Paste it into your email app and customize as needed.");
+                      }}
+                      style={{
+                        background: 'rgba(34, 197, 94, 0.2)',
+                        border: '1px solid rgba(34, 197, 94, 0.4)',
+                        borderRadius: '6px',
+                        padding: '8px 16px',
+                        color: '#22c55e',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        marginTop: '12px',
+                        width: '100%'
+                      }}
+                    >
+                      📧 Copy Email Template to Share With Team
+                    </button>
+                  </div>
+                );
+              })()}
+
               <div className="email-preferences">
                 <h4>📧 Email Preference:</h4>
                 <label>
                   <input type="checkbox" defaultChecked />
                   Remind me when Round {nextRound.number} is ready
+                </label>
+                <label>
+                  <input type="checkbox" defaultChecked />
+                  Send stakeholder guidance (share with your team)
                 </label>
                 <label>
                   <input type="checkbox" />
