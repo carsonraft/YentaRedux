@@ -1,21 +1,118 @@
 const express = require('express');
 const router = express.Router();
+const OpenAI = require('openai');
 
-// Mock AI extraction endpoint (replace with actual OpenAI call later)
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Real AI extraction endpoint using OpenAI
 router.post('/extract-info', async (req, res) => {
   try {
-    const { prompt, userMessage, currentRound } = req.body;
+    const { prompt, userMessage, currentRound, conversationHistory } = req.body;
     
-    // For now, return a mock response
-    // In production, this would call OpenAI with the extraction prompt
-    const mockExtraction = extractWithMockAI(userMessage, currentRound);
+    // Race between AI extraction and timeout
+    const extraction = await Promise.race([
+      extractWithOpenAI(userMessage, currentRound, conversationHistory, true), // fast mode
+      new Promise((resolve) => {
+        setTimeout(() => {
+          console.log('⏱️ AI extraction timeout, using mock');
+          resolve(extractWithMockAI(userMessage, currentRound));
+        }, 2000); // 2 second timeout
+      })
+    ]);
     
-    res.json(mockExtraction);
+    res.json(extraction);
   } catch (error) {
     console.error('AI extraction error:', error);
     res.status(500).json({ error: 'Extraction failed' });
   }
 });
+
+async function extractWithOpenAI(userMessage, currentRound, conversationHistory = [], fastMode = false) {
+  console.log('🤖 REAL AI EXTRACTION:', { userMessage, currentRound, fastMode });
+  
+  const extractionPrompt = `Extract structured data from this user message in a conversation about AI needs.
+Current round: ${currentRound}
+User message: "${userMessage}"
+
+Previous conversation context:
+${conversationHistory.join('\n')}
+
+Extract the following information (return null for any field not found):
+
+{
+  "structured": {
+    "problemType": "customer_support|data_analysis|automation|financial_management|time_tracking|other",
+    "problemTypeCategory": "automation|analytics|management|other",
+    "industry": "exact industry term mentioned (e.g., 'fintech', 'healthcare')",
+    "industryCategory": "technology|healthcare|finance|construction|retail|manufacturing|government|energy|other",
+    "jobFunction": "c_level|vp|director|manager|individual_contributor",
+    "jobFunctionCategory": "executive|management|individual",
+    "businessUrgency": "under_3_months|3_to_6_months|6_to_12_months|1_year_plus",
+    "budgetStatus": "just_exploring|in_planning|awaiting_approval|approved",
+    "solutionType": "end_to_end|add_to_stack|custom_solution",
+    "teamSize": "number of employees mentioned",
+    "decisionRole": "chief_decision_maker|team_member|researcher"
+  },
+  "context": {
+    "challengeDescription": "brief description of their business challenge",
+    "urgencyReasoning": "why this timeline",
+    "budgetContext": "any budget details mentioned",
+    "solutionPreferences": "what kind of solution they want",
+    "complianceDetails": "any compliance requirements (HIPAA, GDPR, etc.)"
+  },
+  "artifacts": {
+    "companyWebsite": "extracted website URL if mentioned",
+    "keyQuotes": ["important direct quotes from the user"]
+  }
+}
+
+IMPORTANT: 
+- Extract ONLY what's explicitly stated
+- For problemType, look for keywords like "customer service", "data analysis", "automation", etc.
+- For industry, extract the exact term they use (e.g., if they say "fintech", use "fintech")
+- If they mention specific amounts like "$50k" or "50 employees", extract those exactly
+- Return valid JSON only`;
+
+  // Retry logic with exponential backoff
+  const maxRetries = fastMode ? 1 : 3; // Only 1 attempt in fast mode
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4.1',
+        messages: [
+          { role: 'system', content: 'You are an expert at extracting structured information from conversations. Always return valid JSON.' },
+          { role: 'user', content: extractionPrompt }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.1,
+        timeout: 30000 // 30 second timeout
+      });
+
+      const extraction = JSON.parse(response.choices[0].message.content);
+      console.log('✅ AI EXTRACTION RESULT:', extraction);
+      return extraction;
+    } catch (error) {
+      lastError = error;
+      console.error(`OpenAI extraction attempt ${attempt} failed:`, error.message);
+      
+      if (attempt < maxRetries) {
+        // Exponential backoff: 1s, 2s, 4s
+        const waitTime = Math.pow(2, attempt - 1) * 1000;
+        console.log(`Retrying in ${waitTime}ms...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+    }
+  }
+  
+  console.error('All AI extraction attempts failed:', lastError);
+  // Only fallback to mock after all retries exhausted
+  console.warn('⚠️ Falling back to mock extraction');
+  return extractWithMockAI(userMessage, currentRound);
+}
 
 function extractWithMockAI(userMessage, currentRound) {
   console.log('🤖 MOCK AI EXTRACTION:', { userMessage, currentRound });

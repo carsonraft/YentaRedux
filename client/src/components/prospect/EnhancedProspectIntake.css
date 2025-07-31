@@ -8,7 +8,7 @@
   padding: 80px 64px 64px 64px !important;
   display: flex !important;
   justify-content: center !important;
-  align-items: flex-start !important;
+  align-items: center !important;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
   /* Let the mountain background show through */
 }

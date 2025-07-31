@@ -105,7 +105,7 @@ interface ArtifactsData {
 }
 
 const EnhancedProspectIntake: React.FC = () => {
-  const [currentStep, setCurrentStep] = useState<'landing' | 'form' | 'conversation' | 'transition' | 'complete'>('conversation');
+  const [currentStep, setCurrentStep] = useState<'landing' | 'form' | 'conversation' | 'transition' | 'complete'>('landing');
   const [currentRound, setCurrentRound] = useState<1 | 2 | 3>(1);
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentMessage, setCurrentMessage] = useState('');
@@ -645,8 +645,7 @@ Generated via Yenta AI Assessment Platform`;
               <button 
                 className="cta-button-secondary"
                 onClick={() => {
-                  // TODO: Navigate to vendor registration flow
-                  console.log('Navigate to vendor registration');
+                  window.location.href = '/vendor-intake';
                 }}
               >
                 Join as Vendor
@@ -656,6 +655,19 @@ Generated via Yenta AI Assessment Platform`;
               <span className="cta-for-companies">For companies seeking AI solutions</span>
               <span className="cta-separator">•</span>
               <span className="cta-for-vendors">For AI vendors and consultants</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
+              <button 
+                className="cta-button-primary"
+                onClick={() => {
+                  window.location.href = '/login';
+                }}
+                style={{
+                  width: '416px'
+                }}
+              >
+                Login to Your Account
+              </button>
             </div>
           </div>
 

@@ -9,6 +9,7 @@ const linkedinValidation = require('../services/linkedinValidation');
 const smartBudgetAssessment = require('../services/smartBudgetAssessment');
 const multiRoundConversation = require('../services/multiRoundConversation');
 const behavioralAnalysis = require('../services/behavioralAnalysis');
+const VettingOrchestrator = require('../services/vettingOrchestrator');
 
 /**
  * Enhanced Prospect Vetting API Routes
@@ -640,6 +641,38 @@ function parseCompanySize(companySizeString) {
 }
 
 // Attach helper methods to router for access
+// POST /api/vetting/orchestrate-round - Trigger orchestration for a completed round
+router.post('/orchestrate-round', async (req, res) => {
+  try {
+    const { conversationId, roundNumber } = req.body;
+    
+    if (!conversationId || !roundNumber) {
+      return res.status(400).json({ 
+        error: 'conversationId and roundNumber are required' 
+      });
+    }
+    
+    console.log(`🎭 Triggering orchestration for conversation ${conversationId}, round ${roundNumber}`);
+    
+    const orchestrator = new VettingOrchestrator();
+    const result = await orchestrator.orchestrateRoundVetting(conversationId, roundNumber);
+    
+    res.json({
+      success: true,
+      conversationId,
+      roundNumber,
+      result
+    });
+    
+  } catch (error) {
+    console.error('Orchestration trigger error:', error);
+    res.status(500).json({ 
+      error: 'Orchestration failed', 
+      details: error.message 
+    });
+  }
+});
+
 router.calculateComprehensiveScore = calculateComprehensiveScore;
 router.determineReadinessCategory = determineReadinessCategory;
 router.createValidationSummary = createValidationSummary;

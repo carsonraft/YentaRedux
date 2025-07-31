@@ -36,7 +36,10 @@ When asking about problems, guide them with examples like:
 - "predictive analytics"
 - "process automation"
 
-Start with: "Hi! I'm here to understand your AI project needs. What specific business problem are you trying to solve with AI?"`;
+CRITICAL: Your FIRST message must start EXACTLY with "Hi! Welcome to Yenta" - do NOT start with "Of course", "Certainly", "Sure", or ANY other word.
+
+For your first message, say:
+"Hi! Welcome to Yenta - I'm excited to help you find the perfect AI vendor for your needs. Could you tell me about the specific business challenge or opportunity you're hoping AI can help with? For example, some businesses use AI for hiring automation, customer support, data analysis, inventory management, or process automation."`;
     this.ROUND_1_SYSTEM_PROMPT = `You are conducting Round 1 of AI project qualification: PROJECT DISCOVERY. 
 
 Goals: Identify specific business problem and pain points. Understand current processes and their limitations. Assess initial urgency and business impact. 
@@ -127,8 +130,8 @@ Note: If during the conversation it becomes clear that someone else should be in
 
   async startConversation(companyName = '') {
     const greeting = companyName 
-      ? `Hi ${companyName}! I'm here to understand your AI project needs. What specific business problem are you trying to solve with AI?`
-      : `Hi! I'm here to understand your AI project needs. What specific business problem are you trying to solve with AI?`;
+      ? `Hi ${companyName}! Welcome to Yenta - I'm excited to help you find the perfect AI vendor for your needs. Could you tell me about the specific business challenge or opportunity you're hoping AI can help with? For example, some businesses use AI for hiring automation, customer support, data analysis, inventory management, or process automation.`
+      : `Hi! Welcome to Yenta - I'm excited to help you find the perfect AI vendor for your needs. Could you tell me about the specific business challenge or opportunity you're hoping AI can help with? For example, some businesses use AI for hiring automation, customer support, data analysis, inventory management, or process automation.`;
 
     return [
       { role: 'system', content: this.INTAKE_SYSTEM_PROMPT },
@@ -144,13 +147,18 @@ Note: If during the conversation it becomes clear that someone else should be in
       ];
 
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-4',
+        model: 'gpt-4.1',
         messages: conversationMessages,
         max_tokens: 300,
         temperature: 0.7
       });
 
-      const assistantResponse = response.choices[0].message.content;
+      let assistantResponse = response.choices[0].message.content;
+      
+      // Strip common AI preambles from the first AI response
+      if (conversationMessages.length <= 3) {
+        assistantResponse = assistantResponse.replace(/^(Of course!?|Certainly!?|Sure!?|Absolutely!?|I'd be happy to help!?|To kick things off,?)\s*/i, '');
+      }
       
       return {
         messages: [...conversationMessages, { role: 'assistant', content: assistantResponse }],
@@ -254,7 +262,7 @@ Note: If during the conversation it becomes clear that someone else should be in
     ];
 
     const response = await this.openai.chat.completions.create({
-      model: 'gpt-4-turbo',
+      model: 'gpt-4.1',
       messages: conversationMessages,
       response_format: { type: "json_object" },
       max_tokens: 1000,
@@ -310,7 +318,7 @@ Note: If during the conversation it becomes clear that someone else should be in
 
     try {
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-4-turbo',
+        model: 'gpt-4.1',
         messages: [
           { role: 'system', content: 'You are an expert at extracting structured information from conversations.' },
           { role: 'user', content: extractionPrompt }
