@@ -24,6 +24,7 @@ export const FrontendProgress: React.FC = () => {
     { name: 'ProspectsManagement', status: 'completed', description: 'List, filter, and review prospects' },
     { name: 'ConversationViewer', status: 'completed', description: 'View prospect AI conversations' },
     { name: 'MatchingInterface', status: 'completed', description: 'Approve/reject AI matches' },
+    { name: 'AuthenticatedRouting', status: 'completed', description: 'Protected routes with role-based access' },
     { name: 'MeetingsAdmin', status: 'pending', description: 'Meetings administration panel' },
     { name: 'VendorManagement', status: 'pending', description: 'Vendor profiles and performance' },
     { name: 'MDFAllocations', status: 'pending', description: 'MDF budget management' },

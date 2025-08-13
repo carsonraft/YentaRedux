@@ -468,7 +468,13 @@ const EnhancedProspectIntake: React.FC = () => {
             </button>
           </form>
 
-          <LinkedInSignIn />
+          <LinkedInSignIn 
+            onLinkedInSuccess={(data, suggestedRole) => {
+              console.log('LinkedIn success:', data, suggestedRole);
+              // Handle LinkedIn data if needed
+            }}
+            userType="prospect"
+          />
         </div>
       </div>
     );

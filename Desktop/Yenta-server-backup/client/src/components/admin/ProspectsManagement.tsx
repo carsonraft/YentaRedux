@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import '../../styles/dashboard.css';
 
 interface Prospect {
@@ -15,11 +16,8 @@ interface Prospect {
   ai_summary?: string;
 }
 
-interface ProspectsManagementProps {
-  onViewConversation: (sessionId: string) => void;
-}
-
-export const ProspectsManagement: React.FC<ProspectsManagementProps> = ({ onViewConversation }) => {
+export const ProspectsManagement: React.FC = () => {
+  const navigate = useNavigate();
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -358,7 +356,7 @@ export const ProspectsManagement: React.FC<ProspectsManagementProps> = ({ onView
                   </td>
                   <td style={{ padding: '1rem 0.5rem', textAlign: 'center' }}>
                     <button
-                      onClick={() => onViewConversation(prospect.session_id)}
+                      onClick={() => navigate(`/conversation/${prospect.session_id}`)}
                       style={{
                         padding: '0.5rem 1rem',
                         backgroundColor: '#2563eb',
